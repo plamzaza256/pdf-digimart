@@ -32,6 +32,7 @@ a { color: inherit; }
 .nav { max-width: 1120px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .brand-mark { background: var(--brand); color: #fff; font-weight: 800; padding: 8px 10px; border-radius: 10px; }
+.brand-logo { width: 46px; height: 46px; border-radius: 12px; object-fit: cover; }
 .brand-text { font-weight: 800; display: flex; flex-direction: column; line-height: 1.1; }
 .brand-text small { font-weight: 500; color: var(--muted); font-size: 0.72rem; }
 .nav-links { display: flex; gap: 4px; margin-inline-start: 8px; }

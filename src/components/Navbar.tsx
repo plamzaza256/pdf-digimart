@@ -14,10 +14,10 @@ export default function Navbar() {
       </div>
       <nav className="nav">
         <Link to="/" className="brand">
-          <span className="brand-mark">PDF</span>
+          <img src="logo.png" alt="โลโก้ร้านให้แม่มึงทำ" className="brand-logo" />
           <span className="brand-text">
-            ดิจิมาร์ท
-            <small>ร้านไฟล์ PDF ไทย</small>
+            ให้แม่มึงทำ
+            <small>ร้านไฟล์ PDF อังกฤษ</small>
           </span>
         </Link>
         <div className="nav-links">

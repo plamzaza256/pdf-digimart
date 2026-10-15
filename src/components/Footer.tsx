@@ -5,7 +5,7 @@ export default function Footer() {
     <footer className="footer">
       <div className="container footer-grid">
         <div>
-          <strong>PDF ดิจิมาร์ท (รุ่นทดลอง)</strong>
+          <strong>PDF ให้แม่มึงทำ (รุ่นทดลอง)</strong>
           <p>
             ร้านขายไฟล์ดิจิทัล — หนังสือ เอกสาร และข้อสอบ
             ในรูปแบบ PDF สำหรับคนไทย
@@ -35,7 +35,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="footer-bottom">
-        © 2026 PDF ดิจิมาร์ท — สร้างด้วย React + Vite • งบ 0 บาท • โค้ดเปิดดูได้ใน README
+        © 2026 PDF ให้แม่มึงทำ — สร้างด้วย React + Vite • งบ 0 บาท • อ่านเพลิน สอบผ่าน แม่ภูมิใจ
       </div>
     </footer>
   );
