@@ -32,7 +32,7 @@ export default function Navbar() {
             onClick={() => nav('/cart')}
             aria-label="ตะกร้า"
           >
-            🛒 ตะกร้า ({cartCount})
+            🛒 <span className="cart-label">ตะกร้า </span>({cartCount})
           </button>
           {user ? (
             <>
@@ -53,9 +53,6 @@ export default function Navbar() {
             <>
               <button className="btn btn-outline" onClick={() => nav('/login')}>
                 เข้าสู่ระบบ
-              </button>
-              <button className="btn btn-primary" onClick={() => nav('/register')}>
-                สมัครสมาชิก
               </button>
             </>
           )}
