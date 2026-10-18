@@ -22,8 +22,8 @@ export interface Product {
 export interface User {
   name: string;
   email: string;
-  /** เก็บแบบจำลองเท่านั้น ห้ามใช้รหัสผ่านจริง */
-  passHash: string;
+  /** เลขสมาชิกจากชีต (UID_0001 ถึง UID_9999) ใช้แสดงผลอย่างเดียว ใช้ล็อกอินไม่ได้ */
+  userId?: string;
   role: 'customer' | 'admin';
   createdAt: string;
 }

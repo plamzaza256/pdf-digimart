@@ -34,7 +34,8 @@ export default function Admin() {
       <div className="container page narrow">
         <h1>หน้าแอดมิน</h1>
         <div className="notice warn-box">
-          เฉพาะบัญชีแอดมินจำลอง (<code>admin@example.com</code>) เท่านั้นที่เข้าหน้านี้ได้
+          เฉพาะบัญชีเจ้าของร้านเท่านั้นที่เข้าหน้านี้ได้ — ตอนนี้การตรวจยังทำฝั่งเบราว์เซอร์เท่านั้น
+          ยังไม่ปลอดภัยจริง ขั้นต่อไปคือยืนยันด้วย Google Sign-In ฝั่งเซิร์ฟเวอร์
         </div>
         <Link to="/login" className="btn btn-primary">ไปเข้าสู่ระบบ</Link>
       </div>
