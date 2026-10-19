@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { useShop } from '../store/shop';
-import { useAuth } from '../store/auth';
-import type { Category, Product } from '../types';
-import { formatPrice } from '../data/products';
+import { useAdminShop } from '../store/products';
+import { useAuth } from '@shared/store/auth';
+import type { Category, Product } from '@shared/types';
+import { formatPrice } from '@shared/lib/format';
 
 const empty: Product = {
   id: '',
@@ -24,7 +24,7 @@ const empty: Product = {
 };
 
 export default function Admin() {
-  const { products, addProduct, updateProduct, deleteProduct, resetDemo } = useShop();
+  const { products, addProduct, updateProduct, deleteProduct, loading, fromSheet } = useAdminShop();
   const { user } = useAuth();
   const [form, setForm] = useState<Product>(empty);
   const [editing, setEditing] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export default function Admin() {
       tags: form.tags.map((t) => t.trim()).filter((t) => t.length > 0),
       createdAt: form.createdAt || new Date().toISOString().slice(0, 10),
     };
-    if (editing) updateProduct(p);
+    if (editing) updateProduct(p.id, p);
     else addProduct(p);
     setForm(empty);
     setEditing(null);
@@ -65,8 +65,14 @@ export default function Admin() {
 
   return (
     <div className="container page">
-      <h1>แอดมิน — จัดการสินค้า (ข้อมูลจำลอง)</h1>
-      <p className="muted">เพิ่ม / แก้ไข / ลบไฟล์ PDF ตัวอย่าง ข้อมูลเก็บในเบราว์เซอร์ เตรียมต่อฐานข้อมูลจริงภายหลัง</p>
+      <h1>จัดการสินค้า</h1>
+      <p className="muted">
+        {loading
+          ? 'กำลังโหลดสินคาจากชีต…'
+          : fromSheet
+            ? 'ดึงข้อมูลจาก Google Sheets แล้ว'
+            : 'ยังดึงข้อมูลจากชีตไม่ได้ — ตอนนี้ยังแก้ได้แค่ในหน้านี้'}
+      </p>
 
       <form className="form admin-form" onSubmit={submit}>
         <h3>{editing ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}</h3>
@@ -94,7 +100,6 @@ export default function Admin() {
         <div className="form-row">
           <button className="btn btn-primary" type="submit">{editing ? 'บันทึกการแก้ไข' : 'เพิ่มสินค้า'}</button>
           {editing && <button type="button" className="btn btn-outline" onClick={() => { setForm(empty); setEditing(null); }}>ยกเลิก</button>}
-          <button type="button" className="btn btn-ghost" onClick={() => { if (confirm('รีเซ็ตกลับเป็นข้อมูลตัวอย่างเดิม?')) resetDemo(); }}>รีเซ็ตข้อมูลตัวอย่าง</button>
         </div>
       </form>
 

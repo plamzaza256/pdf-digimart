@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { Product } from '../types';
+import type { Product } from '@shared/types';
 import { formatPrice } from '../data/products';
 import { useShop } from '../store/shop';
 

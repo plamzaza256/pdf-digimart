@@ -24,6 +24,8 @@ export interface User {
   email: string;
   /** เลขสมาชิกจากชีต (UID_0001 ถึง UID_9999) ใช้แสดงผลอย่างเดียว ใช้ล็อกอินไม่ได้ */
   userId?: string;
+  /** วิธีที่สมาชิกสมัคร: รหัสผ่าน หรือ Google */
+  loginMethod?: 'password' | 'google';
   role: 'customer' | 'admin';
   createdAt: string;
 }

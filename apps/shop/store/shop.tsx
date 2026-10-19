@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { CartLine, Order, Product } from '../types';
+import type { CartLine, Order, Product } from '@shared/types';
 import { mockProducts } from '../data/products';
-import { useAuth } from './auth';
+import { useAuth } from '@shared/store/auth';
 
 const CUSTOM_PRODUCTS_KEY = 'pdfshop_custom_products_v1';
 const DELETED_KEY = 'pdfshop_deleted_ids_v1';

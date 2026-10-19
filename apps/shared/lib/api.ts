@@ -11,6 +11,7 @@ export interface ApiUser {
   email: string;
   name: string;
   created_at?: string;
+  login_method?: 'password' | 'google';
 }
 
 interface ApiResult {
@@ -18,6 +19,7 @@ interface ApiResult {
   error?: string;
   message?: string;
   user?: ApiUser;
+  token?: string;
   [k: string]: unknown;
 }
 
@@ -64,6 +66,23 @@ export function apiLogin(email: string, password: string) {
 /** ดึงข้อมูลเดิมของสมาชิก (ใช้ตอนกลับมาเข้าเว็บอีกครั้ง) */
 export function apiCheckUser(email: string) {
   return call('user.check', { email });
+}
+
+/**
+ * ยืนยันตัวตนด้วยอีเมล + รหัสผู้ใช้ โดยไม่ต้องกรอกรหัสผ่าน
+ * นี่คือตัวที่ยืนยันว่า "คนนี้คือคนที่ล็อกอินไว้จริง" ก่อนดึงคลังไฟล์
+ */
+export function apiSession(email: string, token: string) {
+  return call('user.session', { email, token });
+}
+
+/** เปลี่ยนรหัสผ่าน */
+export function apiChangePassword(email: string, oldPassword: string, newPassword: string) {
+  return call('user.change_password', {
+    email,
+    old_password: oldPassword,
+    new_password: newPassword,
+  });
 }
 
 // ============================ สินค้า ============================

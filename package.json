@@ -1,13 +1,17 @@
 {
-  "name": "pdf-dimart",
+  "name": "pdf-digimart",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "vite --config vite.shop.config.ts",
+    "dev:admin": "vite --config vite.admin.config.ts",
+    "build": "tsc -b && npm run build:shop && npm run build:admin",
+    "build:shop": "vite build --config vite.shop.config.ts",
+    "build:admin": "vite build --config vite.admin.config.ts",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview --config vite.shop.config.ts",
+    "preview:admin": "vite preview --config vite.admin.config.ts"
   },
   "dependencies": {
     "react": "^19.2.8",

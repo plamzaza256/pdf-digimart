@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { useAuth } from '../store/auth';
+import { useAuth } from '@shared/store/auth';
 import { useShop } from '../store/shop';
 
 export default function Navbar() {

@@ -1,5 +1,5 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './store/auth';
+import { AuthProvider } from '@shared/store/auth';
 import { ShopProvider } from './store/shop';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -10,7 +10,6 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Orders from './pages/Orders';
 import Cart from './pages/Cart';
-import Admin from './pages/Admin';
 
 export default function App() {
   return (
@@ -27,7 +26,8 @@ export default function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/cart" element={<Cart />} />
-              <Route path="/admin" element={<Admin />} />
+              {/* หน้าแอดมินย้ายไปอีกเว็บแยกแล้ว — โยกผู้ใช้ไปที่นั่น */}
+              <Route path="/admin" element={<Navigate to="/" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>

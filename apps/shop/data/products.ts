@@ -1,4 +1,4 @@
-import type { Product } from '../types';
+import type { Product } from '@shared/types';
 
 // ข้อมูลสินค้าจำลอง 8 รายการ ครอบคลุม หนังสือ / เอกสาร / ข้อสอบ
 // หมายเหตุ: รุ่นแรกยังไม่เปิดดาวน์โหลดไฟล์จริง และไม่มีไฟล์ PDF ใน public/

@@ -12,6 +12,8 @@ dist
 dist-ssr
 *.local
 .env
+.env.local
+.env.*.local
 
 # Editor directories and files
 .vscode/*
@@ -23,3 +25,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# ผลลัพธ์ build ของทั้งสองเว็บ
+dist/shop
+dist/admin

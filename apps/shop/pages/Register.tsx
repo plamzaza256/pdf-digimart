@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../store/auth';
+import { useAuth } from '@shared/store/auth';
 
 export default function Register() {
   const { register, busy } = useAuth();

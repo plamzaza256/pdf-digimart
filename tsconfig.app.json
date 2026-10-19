@@ -16,11 +16,16 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* โค้ดที่ใช้ร่วมกันระหว่างเว็บร้านกับเว็บแอดมิน */
+    "paths": {
+      "@shared/*": ["./apps/shared/*"]
+    },
+
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["apps"]
 }

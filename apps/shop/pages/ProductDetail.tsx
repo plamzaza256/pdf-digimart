@@ -1,7 +1,7 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useShop } from '../store/shop';
 import { formatPrice } from '../data/products';
-import { useAuth } from '../store/auth';
+import { useAuth } from '@shared/store/auth';
 
 export default function ProductDetail() {
   const { id } = useParams();

@@ -19,7 +19,9 @@
 
 // ============================ ตั้งค่า ============================
 // อีเมลของเจ้าของร้าน (เจ้าของชีต) — เปลี่ยนเป็นอีเมลจริงของคุณ
-const ADMIN_EMAIL = 'owner@example.com';
+// ⚠️ ค่านี้ต้องตรงกับ ADMIN_EMAILS ใน src/store/auth.tsx เสมอ
+//    ถ้าเปลี่ยนอีเมลเจ้าของร้าน ต้องแก้ 2 ที่ แล้ว Deploy ใหม่
+const ADMIN_EMAIL = '16052551mk@gmail.com';
 const ADMIN_NAME = 'เจ้าของร้าน';
 
 const SHEET_PRODUCTS = 'Products';
@@ -28,6 +30,8 @@ const SHEET_ORDER_ITEMS = 'OrderItems';
 const SHEET_PAYMENTS = 'PaymentSubmissions';
 const SHEET_CONFIG = 'Config';
 const SHEET_USERS = 'user_id';
+const SHEET_LIBRARY = 'Library';
+const SHEET_FILES = 'Files';
 
 const CATEGORY_LIST = ['หนังสือ', 'เอกสาร', 'ข้อสอบ'];
 const DOC_LANG_LIST = ['th', 'en', 'other'];
@@ -74,6 +78,16 @@ function setupSheets() {
   _ensureSheet(SHEET_USERS, [
     'User_id', 'email', 'password', 'name', 'Creation date', 'last_login'
   ]);
+  // เพิ่มคอลัมน์ที่ภายหลังต้องใช้ ให้แท็บเก่าที่สร้างไว้แล้วอัปเดตอัตโนมัติ
+  _ensureColumns(SHEET_USERS, ['token', 'login_method']);
+  _ensureColumns(SHEET_ORDERS, ['User_id', 'order_token', 'library_granted']);
+  _ensureSheet(SHEET_LIBRARY, [
+    'grant_id', 'User_id', 'email', 'product_id', 'file_code',
+    'order_id', 'granted_at', 'granted_by', 'active'
+  ]);
+  _ensureSheet(SHEET_FILES, [
+    'product_id', 'file_code', 'file_name', 'drive_url', 'file_size', 'updated_at'
+  ]);
   _seedConfig();
   _seedProducts();
 
@@ -93,6 +107,28 @@ function _ensureSheet(name, headers) {
       .setBackground('#e2e8f0');
   }
   return sh;
+}
+
+/**
+ * เติมคอลัมน์ที่ยังไม่มีในแท็บเดิม (ใช้ตอนเพิ่มฟีเจอร์ใหม่ ไม่ต้องลบข้อมูลเก่า)
+ */
+function _ensureColumns(sheetName, newHeaders) {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  if (!sh) return;
+  const current = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0]
+    .map(function (h) { return String(h).trim(); });
+
+  let addCol = current.length;
+  newHeaders.forEach(function (h) {
+    if (current.indexOf(String(h).trim()) === -1) {
+      addCol += 1;
+      sh.getRange(1, addCol).setValue(h);
+    }
+  });
+  if (addCol > current.length) {
+    sh.getRange(1, addCol - newHeaders.length + 1, 1, newHeaders.length)
+      .setFontWeight('bold').setBackground('#e2e8f0');
+  }
 }
 
 /** ใส่ค่าตั้งค่อประจำร้าน (แก้ได้ภายหลังที่ชีต Config ได้เลย) */
@@ -153,7 +189,7 @@ function doGet(e) {
     if (action === 'config') return _json(_getConfig());
 
     if (action === 'order.list') {
-      if (!_isAdmin()) return _json({ ok: false, error: 'ไม่มีสิทธิ์' });
+      if (!_isAdmin(p.admin_token)) return _json({ ok: false, error: 'ไม่มีสิทธิ์' });
       return _json(_listOrders());
     }
 
@@ -179,14 +215,31 @@ function doPost(e) {
     // --- ระบบสมาชิก: สมัคร / เข้าสู่ระบบ (ทุกคนเรียกได้) ---
     if (action === 'user.signup') return _json(_signup(body));
     if (action === 'user.login') return _json(_login(body));
+    if (action === 'user.session') return _json(_session(body));
+    if (action === 'user.change_password') return _json(_changePassword(body));
     if (action === 'user.check') return _json(_checkUser(body.email));
 
-    // --- ส่วนแอดมิน (ต้องเป็นเจ้าของชีตที่ล็อกอิน Google) ---
-    if (!_isAdmin()) return _json({ ok: false, error: 'ไม่มีสิทธิ์เข้าถึง' });
+    // --- ฝั่งลูกค้า (ต้องล็อกอินด้วยอีเมล + token) ---
+    if (action === 'library.list') return _json(_myLibrary(body));
+    if (action === 'order.mine') return _json(_myOrders(body));
 
-    if (action === 'product.upsert') return _json(_upsertProduct(body.product || {}));
-    if (action === 'order.verify') return _json(_verifyOrder(body.order_id, true));
-    if (action === 'order.reject') return _json(_verifyOrder(body.order_id, false));
+    // --- ส่วนแอดมิน (ต้องส่งรหัสผู้ดูแล admin_token มาด้วย) ---
+    if (!_isAdmin(body.admin_token)) {
+      return _json({ ok: false, error: 'ไม่มีสิทธิ์เข้าถึง' });
+    }
+
+    if (action === 'product.upsert') {
+      return _json(_upsertProduct(body.product || {}, body.admin_email || ''));
+    }
+    if (action === 'order.verify') {
+      return _json(_verifyOrder(body.order_id, true, body.admin_email || ''));
+    }
+    if (action === 'order.reject') {
+      return _json(_verifyOrder(body.order_id, false, body.admin_email || ''));
+    }
+    if (action === 'library.revoke') {
+      return _json(_revokeGrant(body.grant_id));
+    }
 
     return _json({ ok: false, error: 'ไม่รู้จักคำสั่ง: ' + action });
   } catch (err) {
@@ -218,6 +271,81 @@ function _nextUserId() {
   return 'UID_' + ('0000' + next).slice(-4);
 }
 
+/** สร้างรหัสผู้ใช้สุ่ม ยาว 64 ตัว (เดายากมาก) */
+function _newToken() {
+  return Utilities.getUuid().replace(/-/g, '') +
+    Utilities.getUuid().replace(/-/g, '');
+}
+
+/** วันที่วันนี้ในรูปแบบ yyyy-MM-dd (ใช้ทั้งระบบให้ตรงกัน) */
+function _today() {
+  return Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
+}
+
+/** คืนข้อมูลสมาชิกกลับไปให้เบราว์เซอร์ (ไม่เคยส่งรหัสผ่านออกไป) */
+function _publicUser(row) {
+  return {
+    user_id: row.User_id,
+    email: row.email,
+    name: row.name,
+    created_at: _fmtDate(row['Creation date']),
+    login_method: String(row.login_method || '') === 'google' ? 'google' : 'password'
+  };
+}
+
+/**
+ * หาแถวของสมาชิกจากอีเมล พร้อมตำแหน่งที่จะเขียนกลับ
+ * คืน null ถ้าไม่พบ
+ */
+function _findUserRow(email) {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_USERS);
+  const headers = _header(SHEET_USERS);
+  const data = sh.getDataRange().getValues();
+  const cEmail = headers.indexOf('email');
+  const clean = String(email || '').trim().toLowerCase();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][cEmail] || '').toLowerCase() === clean) {
+      const obj = {};
+      for (let c = 0; c < headers.length; c++) obj[headers[c]] = data[i][c];
+      return { row: obj, rowIdx: i + 1, headers: headers, sheet: sh };
+    }
+  }
+  return null;
+}
+
+/** เขียนค่าลงช่องหนึ่งช่องของแถวที่ระบุ (เลือกคอลัมน์จากชื่อ ปลอดภัยกว่าเลขตำแหน่ง) */
+function _writeUserCell(found, columnName, value) {
+  const c = found.headers.indexOf(columnName);
+  if (c === -1) return;
+  found.sheet.getRange(found.rowIdx, c + 1).setValue(value);
+}
+
+/**
+ * ออกรหัสผู้ใช้ให้สมาชิก (ถ้ายังไม่มี)
+ * ใช้ยืนยันตัวตนเวลาขอดูคลังไฟล์ — ป้องกันคนแอบพิมพ์อีเมลคนอื่นมาดูไฟล์
+ */
+function _ensureToken(found) {
+  const current = String(found.row.token || '').trim();
+  if (current.length >= 32) return current;
+  const token = _newToken();
+  _writeUserCell(found, 'token', token);
+  found.row.token = token;
+  return token;
+}
+
+/** เทียบรหัสผู้ใช้แบบความคงทนต่อเวลา (กันเดาสุ่มทีละตัว) */
+function _safeEqual(a, b) {
+  const x = String(a || '');
+  const y = String(b || '');
+  if (x.length !== y.length || x.length === 0) return false;
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) {
+    diff |= x.charCodeAt(i) ^ y.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 /** สมัครสมาชิกใหม่ -> บันทึกลงชีต user_id */
 function _signup(body) {
   const email = String(body.email || '').trim().toLowerCase();
@@ -235,27 +363,36 @@ function _signup(body) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    // 🛡 กันสมัครซ้ำ: เช็คอีเมลต้องไม่มีอยู่แล้ว
-    const exists = _readSheet(SHEET_USERS).some(function (u) {
-      return String(u.email || '').toLowerCase() === email;
-    });
-    if (exists) return { ok: false, error: 'อีเมลนี้มีบัญชีแล้ว กรุณาเข้าสู่ระบบ' };
+    // 🛡 กันสมัครซ้ำ: เช็คอีเมลต้องไม่มีอยู่แล้ว (รวมบัญชีที่สมัครด้วย Google)
+    if (_findUserRow(email)) {
+      return { ok: false, error: 'อีเมลนี้มีบัญชีแล้ว กรุณาเข้าสู่ระบบ' };
+    }
 
     const userId = _nextUserId();
     if (!userId) return { ok: false, error: 'เต็มจำนวนสมาชิกแล้ว' };
 
-    // วันที่ลงบัญชี (ไม่มีเวลา)
-    const today = Utilities.formatDate(
-      new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
+    const today = _today();
+    const token = _newToken();
 
-    _appendRow(SHEET_USERS, [
-      userId, email, _hashPassword(password), name, today, ''
-    ]);
+    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_USERS);
+    const cols = _header(SHEET_USERS).length;
+    const row = [];
+    for (let i = 0; i < cols; i++) row.push('');
+    row[_header(SHEET_USERS).indexOf('User_id')] = userId;
+    row[_header(SHEET_USERS).indexOf('email')] = email;
+    row[_header(SHEET_USERS).indexOf('password')] = _hashPassword(password);
+    row[_header(SHEET_USERS).indexOf('name')] = name;
+    row[_header(SHEET_USERS).indexOf('Creation date')] = today;
+    row[_header(SHEET_USERS).indexOf('token')] = token;
+    row[_header(SHEET_USERS).indexOf('login_method')] = 'password';
+    sh.appendRow(row);
 
     return {
       ok: true,
       message: 'สมัครสมาชิกสำเร็จ',
-      user: { user_id: userId, email: email, name: name }
+      user: { user_id: userId, email: email, name: name,
+              created_at: today, login_method: 'password' },
+      token: token
     };
   } finally {
     lock.releaseLock();
@@ -272,79 +409,146 @@ function _login(body) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    const users = _readSheet(SHEET_USERS);
-    const found = users.filter(function (u) {
-      return String(u.email || '').toLowerCase() === email;
-    })[0];
+    const found = _findUserRow(email);
+    if (!found) return { ok: false, error: 'ไม่พบบัญชีนี้ กรุณาสมัครสมาชิก' };
 
-    if (!found) {
-      return { ok: false, error: 'ไม่พบบัญชีนี้ กรุณาสมัครสมาชิก' };
+    // 🛡 บัญชีที่สมัครด้วย Google จะไม่มีรหัสผ่านในชีต
+    //    ถ้าไม่เช็คตรงนี้ การส่งรหัสผ่านว่างจะทะลุเข้าบัญชีนั้นได้
+    if (String(found.row.password || '') === '') {
+      return {
+        ok: false,
+        error: 'บัญชีนี้สมัครด้วย Google กรุณาเข้าสู่ระบบด้วย Google'
+      };
     }
-    if (String(found.password || '') !== _hashPassword(password)) {
+
+    if (!_safeEqual(found.row.password, _hashPassword(password))) {
       return { ok: false, error: 'รหัสผ่านไม่ถูกต้อง' };
     }
 
-    // บันทึกเวลาเข้าใช้ล่าสุด (วันที่เท่านั้น)
-    const today = Utilities.formatDate(
-      new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
-    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_USERS);
-    const headers = _header(SHEET_USERS);
-    const data = sh.getDataRange().getValues();
-    const cId = headers.indexOf('User_id');
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][cId]) === String(found.User_id)) {
-        sh.getRange(i + 1, headers.indexOf('last_login') + 1).setValue(today);
-        break;
-      }
-    }
+    const today = _today();
+    _writeUserCell(found, 'last_login', today);
+    const token = _ensureToken(found);
 
     // 🔒 ไม่ส่งรหัสผ่านกลับไปที่เบราว์เซอร์
     return {
       ok: true,
       message: 'เข้าสู่ระบบสำเร็จ',
-      user: {
-        user_id: found.User_id,
-        email: found.email,
-        name: found.name,
-        created_at: _fmtDate(found['Creation date'])
-      }
+      user: _publicUser(found.row),
+      token: token
     };
   } finally {
     lock.releaseLock();
   }
 }
 
-/** เช็คว่าอีเมลนี้มีบัญชีไหม (ใช้ตอน Google Sign-In เพื่อดึงข้อมูลเดิม) */
+/**
+ * ยืนยันตัวตนด้วยอีเมล + รหัสผู้ใช้ (ไม่ต้องกรอกรหัสผ่านอีก)
+ * ใช้ตอนเปิดหน้าเว็บใหม่ และตอนขอดูคลังไฟล์
+ */
+function _session(body) {
+  const email = String(body.email || '').trim().toLowerCase();
+  const token = String(body.token || '').trim();
+  if (!email || !token) {
+    return { ok: false, error: 'ยังไม่ได้เข้าสู่ระบบ' };
+  }
+
+  const found = _findUserRow(email);
+  if (!found || !_safeEqual(found.row.token, token)) {
+    return { ok: false, error: 'การเข้าสู่ระบบหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง' };
+  }
+
+  return { ok: true, user: _publicUser(found.row) };
+}
+
+/** เปลี่ยนรหัสผ่าน (ต้องยืนยันรหัสเดิมก่อน) */
+function _changePassword(body) {
+  const email = String(body.email || '').trim().toLowerCase();
+  const oldPw = String(body.old_password || '');
+  const newPw = String(body.new_password || '');
+  if (newPw.length < 6) {
+    return { ok: false, error: 'รหัสผ่านใหม่ต้องยาวอย่างน้อย 6 ตัวอักษร' };
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const found = _findUserRow(email);
+    if (!found) return { ok: false, error: 'ไม่พบบัญชีนี้' };
+    if (String(found.row.password || '') === '') {
+      return { ok: false, error: 'บัญชีนี้สมัครด้วย Google ไม่มีรหัสผ่านให้เปลี่ยน' };
+    }
+    if (!_safeEqual(found.row.password, _hashPassword(oldPw))) {
+      return { ok: false, error: 'รหัสผ่านเดิมไม่ถูกต้อง' };
+    }
+    _writeUserCell(found, 'password', _hashPassword(newPw));
+    return { ok: true, message: 'เปลี่ยนรหัสผ่านแล้ว' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * เช็คว่าอีเมลนี้มีบัญชีไหม
+ * ⚠️ ห้ามคืนรหัสผู้ใช้ (token) จากฟังก์ชันนี้เด็ดขาด
+ *    ไม่งั้นคนที่รู้อีเมลเพียงอย่างเดียวจะขโมยสิทธิ์ได้
+ */
 function _checkUser(rawEmail) {
   const email = String(rawEmail || '').trim().toLowerCase();
-  const found = _readSheet(SHEET_USERS).filter(function (u) {
-    return String(u.email || '').toLowerCase() === email;
-  })[0];
+  const found = _findUserRow(email);
   if (!found) return { ok: true, exists: false, user: null };
-  return {
-    ok: true, exists: true,
-    user: {
-      user_id: found.User_id,
-      email: found.email,
-      name: found.name,
-      created_at: _fmtDate(found['Creation date'])
-    }
-  };
+  return { ok: true, exists: true, user: _publicUser(found.row) };
 }
 
 // ============================ ตรวจสิทธิ์ (สำคัญมาก) ============================
 
 /**
- * เช็คว่าผู้เรียกเป็นเจ้าของร้านไหม
- * - ต้องล็อกอิน Google แล้วถึงจะได้อีเมล
- * - ถ้าเป็นคนทั่วไป -> getEmail() จะคืนค่าว่าง -> ไม่ผ่าน
+ * ตรวจสิทธิ์ผู้ดูแลร้าน
+ *
+ * ⚠️ ข้อจำกัดของ Google Apps Script:
+ *    ถ้า deploy แบบ "Anyone" Session.getActiveUser().getEmail()
+ *    จะคืนค่าว่างเสมอ ใช้ระบุตัวตนไม่ได้ (เคยทำให้แอดมินเขียนชีตไม่ได้เลย)
+ *
+ *    วิธีที่ใช้ตอนนี้: เจ้าของร้านส่ง "รหัสผู้ดูแล" มาด้วยทุกคำขอ
+ *    เก็บใน Script Properties ชื่อ ADMIN_TOKEN
+ *    (ตั้งค่า: ไอคอนเฟือง → Script properties)
+ *
+ *    ⚠️ ข้อเสีย: รหัสนี้จะโผล่ในไฟล์ JS ของหน้าเว็บ คนที่แก้โค้ดเว็บดูได้
+ *    ขั้นต่อไปคือยืนยันด้วย Google Sign-In ซึ่งปลอดภัยกว่า
  */
-function _isAdmin() {
-  const email = String(Session.getActiveUser().getEmail() || '').toLowerCase();
-  if (!email) return false;
-  const admins = _getConfig('admin_emails') || ADMIN_EMAIL;
-  return admins.split(',').map(function (s) { return s.trim().toLowerCase(); })
-    .indexOf(email) !== -1;
+function _isAdmin(token) {
+  const want = String(_adminToken() || '');
+  if (!want) return false;      // ยังไม่ได้ตั้งรหัส → ปิดทั้งหมด (ปลอดภัยไว้ก่อน)
+  return _safeEqual(want, String(token || '').trim());
+}
+
+/** อ่านรหัสผู้ดูแล: ค่าใน Script Properties มาก่อน ถ้าไม่มีค่อยดูในแท็บ Config */
+function _adminToken() {
+  let v = '';
+  try {
+    v = String(PropertiesService.getScriptProperties().getProperty('ADMIN_TOKEN') || '');
+  } catch (err) {
+    v = '';
+  }
+  return v || String(_getConfig('admin_token') || '');
+}
+
+/** ใช้ตอนทดสอบเท่านั้น: ดูว่าตอนนี้ตั้งรหัสผู้ดูแลแล้วหรือยัง */
+function adminStatus() {
+  const t = _adminToken();
+  return {
+    tokenSet: t.length > 0,
+    // คืนความยาวเท่านั้น ไม่คืนค่าตัวจริง
+    tokenLength: t.length,
+    source: (function () {
+      try {
+        if (PropertiesService.getScriptProperties().getProperty('ADMIN_TOKEN')) {
+          return 'Script Properties';
+        }
+      } catch (err) { /* ignore */ }
+      return t ? 'แท็บ Config' : 'ยังไม่ได้ตั้ง';
+    })(),
+    bankingOpen: _isOpen()
+  };
 }
 
 /** ร้านเปิดรับคำสั่งซื้อหรือยัง (ตั้งค่าในชีต Config ได้) */
@@ -411,11 +615,11 @@ function _listOrders() {
       createdAt: o.created_at,
       customerName: o.customer_name,
       customerEmail: o.customer_email,
+      userId: o.User_id,
       status: o.status,
       total: Math.round(Number(o.total_satang || 0) / 100),
       paymentRef: o.payment_ref,
-      verifiedBy: o.verified_by,
-      verifiedAt: o.verified_at,
+      libraryGranted: String(o.library_granted) === 'TRUE',
       items: lines.map(function (l) {
         return {
           productId: l.product_id,
@@ -427,6 +631,167 @@ function _listOrders() {
     });
   }
   return { ok: true, orders: out };
+}
+
+/**
+ * คลังไฟล์ของสมาชิก
+ * 🔒 ต้องยืนยันตัวตนด้วยอีเมล + token เสมอ (ห้ามค้นด้วย UID หรืออีเมลล้วน)
+ * คืนลิงก์ไฟล์เฉพาะแถวที่ active = TRUE เท่านั้น
+ */
+function _myLibrary(body) {
+  const sess = _session(body);
+  if (!sess.ok) return sess;
+
+  const rows = _readSheet(SHEET_LIBRARY).filter(function (r) {
+    return String(r.email || '').toLowerCase() === sess.user.email.toLowerCase();
+  });
+
+  const files = _readSheet(SHEET_FILES);
+  const items = rows.map(function (r) {
+    const f = files.filter(function (x) {
+      return String(x.product_id) === String(r.product_id);
+    })[0];
+    const active = String(r.active).toUpperCase() === 'TRUE';
+    return {
+      grantId: r.grant_id,
+      userId: r.User_id,
+      productId: r.product_id,
+      title: f ? String(f.file_name || '') : String(r.product_id),
+      fileCode: r.file_code,
+      fileSize: f ? String(f.file_size || '') : '',
+      orderId: r.order_id,
+      grantedAt: _fmtDate(r.granted_at),
+      active: active,
+      // 🛡 คืนลิงก์จริงเฉพาะตอนยังมีสิทธิ์เท่านั้น
+      downloadUrl: active && f ? String(f.drive_url || '') : ''
+    };
+  });
+
+  return { ok: true, user: sess.user, items: items };
+}
+
+/**
+ * ให้สิทธิ์ดาวน์โหลดไฟล์ทุกชิ้นในออเดอร์
+ * เรียกอัตโนมัติเมื่อแอดมินกดยืนยันยอดแล้ว
+ */
+function _grantLibrary(orderId, adminEmail) {
+  const order = _readSheet(SHEET_ORDERS).filter(function (o) {
+    return String(o.order_id) === String(orderId);
+  })[0];
+  if (!order) return 0;
+
+  const lines = _readSheet(SHEET_ORDER_ITEMS).filter(function (x) {
+    return String(x.order_id) === String(orderId);
+  });
+  if (lines.length === 0) return 0;
+
+  const existing = _readSheet(SHEET_LIBRARY);
+  const today = _today();
+  let added = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    // กันให้สิทธิ์ซ้ำแถวเดิม
+    const dup = existing.some(function (r) {
+      return String(r.order_id) === String(orderId) &&
+        String(r.product_id) === String(l.product_id);
+    });
+    if (dup) continue;
+
+    // ดึง file_code จากแท็บ Files
+    const f = _readSheet(SHEET_FILES).filter(function (x) {
+      return String(x.product_id) === String(l.product_id);
+    })[0];
+
+    _appendRow(SHEET_LIBRARY, [
+      Utilities.getUuid(),
+      order.User_id,
+      order.customer_email,
+      l.product_id,
+      f ? String(f.file_code || '') : '',
+      orderId,
+      today,
+      adminEmail || '',
+      'TRUE'
+    ]);
+    added++;
+  }
+
+  // ทำเครื่องหมายว่าออเดอร์นี้แจกสิทธิ์แล้ว
+  _markOrder(orderId, 'library_granted', true);
+  return added;
+}
+
+/**
+ * ถอดสิทธิ์ดาวน์โหลด (แอดมินกดได้จากหน้าเว็บ)
+ * แก้คอลัมน์ active เป็น FALSE → ลูกค้าเห็นรายการอยู่แต่กดโหลดไม่ได้
+ */
+function _revokeGrant(grantId) {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_LIBRARY);
+  const headers = _header(SHEET_LIBRARY);
+  const data = sh.getDataRange().getValues();
+  const cId = headers.indexOf('grant_id');
+  const cActive = headers.indexOf('active');
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][cId]) === String(grantId)) {
+      sh.getRange(i + 1, cActive + 1).setValue('FALSE');
+      return { ok: true, message: 'ถอดสิทธิ์แล้ว' };
+    }
+  }
+  return { ok: false, error: 'ไม่พบรายการที่ต้องการถอดสิทธิ์' };
+}
+
+/** เขียนค่าลงคอลัมน์ของแถวออเดอร์ โดยเลือกคอลัมน์จากชื่อ */
+function _markOrder(orderId, columnName, value) {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ORDERS);
+  const headers = _header(SHEET_ORDERS);
+  const c = headers.indexOf(columnName);
+  if (c === -1) return;
+  const data = sh.getDataRange().getValues();
+  const cId = headers.indexOf('order_id');
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][cId]) === String(orderId)) {
+      sh.getRange(i + 1, c + 1).setValue(value);
+      return;
+    }
+  }
+}
+
+/** ออเดอร์ของสมาชิกที่ล็อกอินอยู่ (ดูสถานะ "รอโอน/รอตรวจสอบ/สำเร็จ") */
+function _myOrders(body) {
+  const sess = _session(body);
+  if (!sess.ok) return sess;
+
+  const email = sess.user.email.toLowerCase();
+  const items = _readSheet(SHEET_ORDER_ITEMS);
+
+  const orders = _readSheet(SHEET_ORDERS)
+    .filter(function (o) {
+      return String(o.customer_email || '').toLowerCase() === email;
+    })
+    .map(function (o) {
+      const lines = items.filter(function (x) {
+        return String(x.order_id) === String(o.order_id);
+      });
+      return {
+        orderId: o.order_id,
+        createdAt: _fmtDate(o.created_at),
+        status: String(o.status || ''),
+        total: Math.round(Number(o.total_satang || 0) / 100),
+        libraryGranted: String(o.library_granted) === 'TRUE',
+        items: lines.map(function (l) {
+          return {
+            productId: l.product_id,
+            title: l.title_snapshot,
+            price: Math.round(Number(l.price_satang || 0) / 100),
+            qty: Number(l.qty || 0)
+          };
+        })
+      };
+    });
+
+  return { ok: true, orders: orders };
 }
 
 function _getConfig(key) {
@@ -451,15 +816,18 @@ function _getConfigAll() {
  * ⚠️ ราคาคิดจากชีตเท่านั้น ไม่เชื่อราคาที่ส่งมาจากเบราว์เซอร์
  */
 function _createOrder(body) {
+  // 🔒 ต้องล็อกอินจริงถึงจะสั่งซื้อได้ (ยืนยันด้วยอีเมล + token)
+  const sess = _session(body);
+  if (!sess.ok) return sess;
+
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const items = Array.isArray(body.items) ? body.items : [];
     if (items.length === 0) return { ok: false, error: 'ตะกร้าว่างเปล่า' };
 
-    const email = String(body.email || '').trim();
-    const name = String(body.name || '').trim() || 'ลูกค้า';
-    if (email.indexOf('@') === -1) return { ok: false, error: 'อีเมลไม่ถูกต้อง' };
+    const email = sess.user.email;
+    const name = String(body.name || sess.user.name || 'ลูกค้า').trim() || 'ลูกค้า';
 
     const products = _listProducts().products;
     const lines = [];
@@ -471,7 +839,8 @@ function _createOrder(body) {
       if (!p) return { ok: false, error: 'ไม่พบสินค้า: ' + it.productId };
 
       const qty = Math.max(1, Math.min(99, Number(it.qty || 1)));
-      const priceSatang = Math.round(p.price * 100); // คิดราคาจากชีตเท่านั้น!
+      // 🛡 คิดราคาจากชีตเท่านั้น ยอมรับราคาจากเบราว์เซอร์ไม่ได้
+      const priceSatang = Math.round(p.price * 100);
       totalSatang += priceSatang * qty;
       lines.push({
         productId: p.id,
@@ -482,12 +851,13 @@ function _createOrder(body) {
     }
 
     const orderId = _newId('ORD');
-    const token = Utilities.getUuid() + Utilities.getUuid(); // โทเคนยาวมาก
+    const orderToken = _newToken();
     const now = new Date();
 
     _appendRow(SHEET_ORDERS, [
-      orderId, now, name, email, 'google', _hash(token),
-      ORDER_STATUS.NEW, totalSatang, '', '', '', ''
+      orderId, now, name, email, 'password', _hash(orderToken),
+      ORDER_STATUS.NEW, totalSatang, '', '', '', '',
+      sess.user.user_id, '', ''       // User_id, order_token, library_granted
     ]);
 
     for (let i = 0; i < lines.length; i++) {
@@ -499,8 +869,8 @@ function _createOrder(body) {
 
     return {
       ok: true,
+      message: 'สร้างคำสั่งซื้อแล้ว กรุณาโอนเงินตามยอดที่แสดง',
       order_id: orderId,
-      token: token,       // ส่งคืนให้ลูกค้าเก็บไว้ (เก็บแค่แฮชในชีต)
       total: Math.round(totalSatang / 100)
     };
   } finally {
@@ -508,8 +878,14 @@ function _createOrder(body) {
   }
 }
 
-/** ลูกค้าแจ้งว่าโอนเงินแล้ว */
+/**
+ * ลูกค้าแจ้งว่าโอนเงินแล้ว
+ * 🔒 ต้องล็อกอินด้วยอีเมลเดียวกับที่สั่งซื้อ ไม่งั้นคนอื่นแจ้งแทนได้
+ */
 function _submitPayment(body) {
+  const sess = _session(body);
+  if (!sess.ok) return sess;
+
   const orderId = String(body.order_id || '');
   const ref = String(body.payment_ref || '').trim();
   if (!orderId) return { ok: false, error: 'ไม่พบหมายเลขคำสั่งซื้อ' };
@@ -529,6 +905,19 @@ function _submitPayment(body) {
       if (String(data[i][cId]) === orderId) { rowIdx = i + 1; break; }
     }
     if (rowIdx === -1) return { ok: false, error: 'ไม่พบคำสั่งซื้อ' };
+
+    // 🛡 ต้องเป็นออเดอร์ของคนที่ล็อกอินอยู่เท่านั้น
+    const cEmail = headers.indexOf('customer_email');
+    if (String(data[rowIdx - 1][cEmail] || '').toLowerCase() !==
+        sess.user.email.toLowerCase()) {
+      return { ok: false, error: 'ไม่พบคำสั่งซื้อของคุณ' };
+    }
+
+    // แจ้งแล้วต้องยังรอโอนอยู่ ป้องกันส่งซ้ำหลังจ่ายแล้ว
+    const cStatus = headers.indexOf('status');
+    if (String(data[rowIdx - 1][cStatus]) !== ORDER_STATUS.NEW) {
+      return { ok: false, error: 'คำสั่งซื้อนี้ถูกดำเนินการแล้ว' };
+    }
 
     sh.getRange(rowIdx, cRef + 1).setValue(ref);
 
@@ -601,7 +990,7 @@ function _upsertProduct(p) {
  * ยืนยัน / ปฏิเสธการจ่ายเงิน (เฉพาะแอดมิน)
  * ป้องกันการยืนยันซ้ำ: ถ้ายืนยันไปแล้ว จะไม่ทำอะไรอีก
  */
-function _verifyOrder(orderId, approve) {
+function _verifyOrder(orderId, approve, adminEmail) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -623,15 +1012,27 @@ function _verifyOrder(orderId, approve) {
       return { ok: false, error: 'คำสั่งซื้อนี้ถูกดำเนินการแล้ว (' + current + ')' };
     }
 
-    const email = Session.getActiveUser().getEmail() || '';
+    const email = String(adminEmail || '');
     const target = approve ? ORDER_STATUS.PAID : ORDER_STATUS.REJECTED;
     sh.getRange(rowIdx, cStatus + 1).setValue(target);
     sh.getRange(rowIdx, headers.indexOf('verified_by') + 1).setValue(email);
     sh.getRange(rowIdx, headers.indexOf('verified_at') + 1).setValue(new Date());
 
-    if (approve) _increaseSales(String(orderId));
+    let granted = 0;
+    if (approve) {
+      _increaseSales(String(orderId));
+      // ✅ แจกสิทธิ์เข้าคลังไฟล์ของลูกค้าอัตโนมัติ
+      granted = _grantLibrary(String(orderId), email);
+    }
 
-    return { ok: true, status: target, message: approve ? 'ยืนยันแล้ว' : 'ปฏิเสธแล้ว' };
+    return {
+      ok: true,
+      status: target,
+      granted: granted,
+      message: approve
+        ? 'ยืนยันแล้ว ส่งไฟล์เข้าคลังของลูกค้าเรียบร้อย (' + granted + ' ไฟล์)'
+        : 'ปฏิเสธแล้ว'
+    };
   } finally {
     lock.releaseLock();
   }
@@ -718,10 +1119,12 @@ function _json(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-/** ใช้ตอนทดสอบเท่านั้น: ดูว่าตอนนี้ใครเป็นแอดมิน */
+/** ใช้ตอนทดสอบเท่านั้น: ดูสถานะระบบ (ไม่เปิดเผยค่ารหัส) */
 function whoAmI() {
-  const email = Session.getActiveUser().getEmail();
-  Logger.log('อีเมล: ' + email);
-  Logger.log('เป็นแอดมิน: ' + _isAdmin());
-  return { email: email, isAdmin: _isAdmin() };
+  const email = Session.getActiveUser().getEmail() || '(ว่าง — เว็บแอปแบบ Anyone)';
+  return {
+    googleEmail: email,
+    admin: adminStatus(),
+    adminEmailForWeb: ADMIN_EMAIL
+  };
 }

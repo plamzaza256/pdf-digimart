@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useShop } from '../store/shop';
-import { useAuth } from '../store/auth';
+import { useAuth } from '@shared/store/auth';
 import { formatPrice } from '../data/products';
 
 export default function Orders() {
