@@ -295,13 +295,23 @@ function _today() {
 }
 
 /** คืนข้อมูลสมาชิกกลับไปให้เบราว์เซอร์ (ไม่เคยส่งรหัสผ่านออกไป) */
+/**
+ * ข้อมูลสมาชิกที่ส่งให้หน้าเว็บ
+ *
+ * is_admin ถูกคำนวณที่นี่ฝั่งเซิร์ฟเวอร์ ไม่ใช่ให้เบราว์เซอร์ตัดสินใจเอง
+ * (ถ้าให้เว็บเปรียบเทียบอีเมลเอง ใครก็แก้โค้ดหน้าเว็บให้ตัวเองเป็นแอดมินได้)
+ *
+ * ⚠️ ค่านี้ใช้แค่ซ่อน/แสดงปุ่มบนหน้าเว็บเท่านั้น
+ *    การตรวจสิทธิ์จริงเกิดที่ _requireAdmin ทุกครั้งที่เขียนข้อมูล
+ */
 function _publicUser(row) {
   return {
     user_id: row.User_id,
     email: row.email,
     name: row.name,
     created_at: _fmtDate(row['Creation date']),
-    login_method: String(row.login_method || '') === 'google' ? 'google' : 'password'
+    login_method: String(row.login_method || '') === 'google' ? 'google' : 'password',
+    is_admin: _isAdminEmail(row.email)
   };
 }
 

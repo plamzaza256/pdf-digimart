@@ -15,14 +15,15 @@ function toUser(u: {
   name: string;
   created_at?: string;
   login_method?: string;
+  is_admin?: boolean;
 }): User {
   return {
     name: u.name || '',
     email: u.email,
     userId: u.user_id,
     loginMethod: 'google',
-    // สิทธิ์ผู้ดูแลจริงถูกตัดสินที่เซิร์ฟเวอร์ ไม่ใช่ที่นี่
-    role: 'customer',
+    // สิทธิ์ผู้ดูแลมาจากเซิร์ฟเวอร์เท่านั้น ไม่ควรเดาจากอีเมลในเบราว์เซอร์
+    role: u.is_admin === true ? 'admin' : 'customer',
     createdAt: u.created_at || '',
   };
 }

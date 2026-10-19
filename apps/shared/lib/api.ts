@@ -12,6 +12,8 @@ export interface ApiUser {
   name: string;
   created_at?: string;
   login_method?: 'password' | 'google';
+  /** สิทธิ์ผู้ดูแลร้าน — คำนวณจากเซิร์ฟเวอร์ ไม่ควรเชื่อค่าจากเบราว์เซอร์ */
+  is_admin?: boolean;
 }
 
 interface ApiResult {
