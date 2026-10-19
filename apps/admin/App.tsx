@@ -1,9 +1,32 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@shared/store/auth';
 import Admin from './pages/Admin';
+import Inbox from './pages/Inbox';
 import { AdminShopProvider } from './store/products';
+
+/** แถบเมนูของเว็บแอดมิน */
+function AdminNav() {
+  const { user, logout } = useAuth();
+  const nav = useNavigate();
+  if (!user) return null;
+  return (
+    <nav className="nav admin-nav">
+      <span className="brand-text" style={{ fontSize: '1.1rem' }}>หลังบ้านร้าน</span>
+      <div className="nav-links">
+        <NavLink to="/orders">กล่องข้อความ</NavLink>
+        <NavLink to="/products">จัดการสินค้า</NavLink>
+      </div>
+      <div className="nav-actions">
+        <span className="user-chip">{user.email}</span>
+        <button className="btn btn-outline btn-sm" onClick={() => { logout(); nav('/login'); }}>
+          ออกจากระบบ
+        </button>
+      </div>
+    </nav>
+  );
+}
 
 /**
  * หน้าล็อกอินของเว็บแอดมิน (คนละชุดกับเว็บร้าน)
@@ -14,7 +37,7 @@ function LoginGate() {
   const [err, setErr] = useState<string | null>(null);
 
   if (user?.role === 'admin') {
-    return <Navigate to="/products" replace />;
+    return <Navigate to="/orders" replace />;
   }
 
   const submit = async (e: FormEvent) => {
@@ -39,9 +62,25 @@ function LoginGate() {
           {busy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบด้วย Google'}
         </button>
         {err && <p className="error">{err}</p>}
+
       </form>
     </div>
   );
+}
+
+/** ป้องกันหน้าแอดมิน: ต้องล็อกอินและต้องเป็นแอดมินเท่านั้น */
+function Guard({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'admin') {
+    return (
+      <div className="container page narrow">
+        <h1>ไม่มีสิทธิ์</h1>
+        <div className="notice warn-box">บัญชีนี้ไม่มีสิทธิ์ผู้ดูแลร้าน</div>
+      </div>
+    );
+  }
+  return <>{children}</>;
 }
 
 export default function App() {
@@ -49,11 +88,13 @@ export default function App() {
     <HashRouter>
       <AuthProvider>
         <AdminShopProvider>
+          <AdminNav />
           <main className="main">
             <Routes>
               <Route path="/login" element={<LoginGate />} />
-              <Route path="/products" element={<Admin />} />
-              <Route path="*" element={<Navigate to="/login" replace />} />
+              <Route path="/orders" element={<Guard><Inbox /></Guard>} />
+              <Route path="/products" element={<Guard><Admin /></Guard>} />
+              <Route path="*" element={<Navigate to="/orders" replace />} />
             </Routes>
           </main>
         </AdminShopProvider>

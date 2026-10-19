@@ -24,7 +24,7 @@ export default function Navbar() {
           <NavLink to="/" end>หน้าแรก</NavLink>
           <NavLink to="/shop">หน้าร้าน</NavLink>
           <NavLink to="/orders">คำสั่งซื้อของฉัน</NavLink>
-          {user?.role === 'admin' && <NavLink to="/admin">แอดมิน</NavLink>}
+          <NavLink to="/library">คลังไฟล์ของฉัน</NavLink>
         </div>
         <div className="nav-actions">
           <button
@@ -37,7 +37,7 @@ export default function Navbar() {
           {user ? (
             <>
               <span className="user-chip" title={user.email}>
-                {user.name} {user.role === 'admin' ? '(แอดมินจำลอง)' : ''}
+                {user.name}
               </span>
               <button
                 className="btn btn-outline"

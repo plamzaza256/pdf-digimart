@@ -86,11 +86,56 @@ export interface ApiOrder {
   customerName?: string;
   customerEmail?: string;
   userId?: string;
-  status: string;
+  status: 'P' | 'S' | 'F' | string;
+  adminNote?: string;
+  verifiedAt?: string;
   total: number;
-  paymentRef?: string;
   libraryGranted?: boolean;
   items: { productId: string; title: string; price: number; qty: number }[];
+}
+
+/** สร้างคำสั่งซื้อจริง (ต้องล็อกอิน) */
+export function apiCreateOrder(
+  email: string,
+  token: string,
+  items: { productId: string; qty: number }[],
+  name?: string,
+) {
+  return call('order.create', { email, token, items, name: name || '' });
+}
+
+/** ออเดอร์ของตัวเอง */
+export function apiMyOrders(email: string, token: string) {
+  return call('order.mine', { email, token });
+}
+
+/** คลังไฟล์ของตัวเอง */
+export function apiMyLibrary(email: string, token: string) {
+  return call('library.list', { email, token });
+}
+
+/** แจ้งชำระเงิน / ส่งข้อความหาผู้ดูแล พร้อมแนบรูปสลิปได้ */
+export function apiSendMessage(
+  email: string,
+  token: string,
+  orderId: string,
+  message: string,
+  image?: { base64: string; name: string; type: string },
+) {
+  return call('message.send', {
+    email,
+    token,
+    order_id: orderId,
+    message,
+    image_base64: image?.base64,
+    image_name: image?.name,
+    image_type: image?.type,
+  });
+}
+
+/** ข้อความในออเดอร์ของตัวเอง */
+export function apiMyMessages(email: string, token: string, orderId: string) {
+  return call('message.list', { email, token, order_id: orderId });
 }
 
 /** ออเดอร์ทั้งหมด (เฉพาะผู้ดูแล) */
@@ -99,13 +144,75 @@ export function apiOrderList(email: string, token: string) {
 }
 
 /** ยืนยันว่าจ่ายเงินแล้ว → ระบบแจกสิทธิ์เข้าคลังไฟล์อัตโนมัติ */
-export function apiVerifyOrder(email: string, token: string, orderId: string) {
-  return call('order.verify', { email, token, order_id: orderId });
+export function apiVerifyOrder(email: string, token: string, orderId: string, note?: string) {
+  return call('order.verify', { email, token, order_id: orderId, admin_note: note || '' });
 }
 
 /** ปฏิเสธคำสั่งซื้อ (เฉพาะผู้ดูแล) */
-export function apiRejectOrder(email: string, token: string, orderId: string) {
-  return call('order.reject', { email, token, order_id: orderId });
+export function apiRejectOrder(email: string, token: string, orderId: string, note?: string) {
+  return call('order.reject', { email, token, order_id: orderId, admin_note: note || '' });
+}
+
+/** inbox ของผู้ดูแล */
+export function apiAdminInbox(email: string, token: string) {
+  return call('admin.inbox', { email, token });
+}
+
+/** เปิดกระทู้ + ทำเครื่องหมายอ่านแล้ว */
+export function apiAdminThread(email: string, token: string, orderId: string) {
+  return call('admin.thread', { email, token, order_id: orderId });
+}
+
+/** ผู้ดูแลตอบกลับ */
+export function apiAdminReply(
+  email: string,
+  token: string,
+  orderId: string,
+  message: string,
+  image?: { base64: string; name: string; type: string },
+) {
+  return call('admin.reply', {
+    email,
+    token,
+    order_id: orderId,
+    message,
+    image_base64: image?.base64,
+    image_name: image?.name,
+    image_type: image?.type,
+  });
+}
+
+/**
+ * อ่านไฟล์รูปเป็น base64 แล้วย่อขนาดก่อนส่ง
+ * - ย่อด้านยาวสุดเหลือ 1,200px เพื่อไม่ให้คำขอใหญ่เกิน Apps Script
+ */
+export function readImageAsBase64(file: File): Promise<{ base64: string; name: string; type: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('อ่านไฟล์รูปไม่สำเร็จ'));
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      const img = new Image();
+      img.onerror = () => reject(new Error('ไฟล์นี้ไม่ใช่รูปภาพ'));
+      img.onload = () => {
+        const max = 1200;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve({ base64: dataUrl, name: file.name, type: file.type });
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve({
+          base64: canvas.toDataURL('image/jpeg', 0.82),
+          name: file.name,
+          type: 'image/jpeg',
+        });
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 /** ถอดสิทธิ์ดาวน์โหลด (เฉพาะผู้ดูแล) */
