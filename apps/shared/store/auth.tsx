@@ -2,13 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react';
 import type { User } from '../types';
 import { apiFirebaseLogin, apiSession } from '../lib/api';
-import {
-  isFirebaseConfigured,
-  signInWithEmail,
-  signInWithGoogle,
-  signUpWithEmail,
-  requestPasswordReset,
-} from '../lib/firebase';
+import { isFirebaseConfigured, signInWithGoogle } from '../lib/firebase';
 
 // เก็บในเบราว์เซอร์ของผู้ใช้เพื่อคงสถานะ "เข้าสู่ระบบแล้ว" ข้ามหน้า
 const SESSION_EMAIL = 'pdfshop_session_v1';
@@ -26,8 +20,9 @@ function toUser(u: {
     name: u.name || '',
     email: u.email,
     userId: u.user_id,
-    loginMethod: 'firebase',
-    role: 'customer', // เดี๋ยวเซิร์ฟเวอร์เป็นผู้กำหนดสิทธิ์จริง
+    loginMethod: 'google',
+    // สิทธิ์ผู้ดูแลจริงถูกตัดสินที่เซิร์ฟเวอร์ ไม่ใช่ที่นี่
+    role: 'customer',
     createdAt: u.created_at || '',
   };
 }
@@ -49,32 +44,14 @@ function clearSession() {
   localStorage.removeItem(SESSION_TOKEN);
 }
 
-/**
- * ส่ง ID Token จาก Firebase ไปให้เซิร์ฟเวอร์ตรวจ
- * เซิร์ฟเวอร์จะคืนรหัสผู้ใช้ที่ใช้กับชีตจริง
- */
-async function exchangeWithServer(
-  idToken: string,
-  name: string,
-): Promise<{ user: User; token: string }> {
-  const r = await apiFirebaseLogin(idToken, name);
-  if (!r.ok || !r.user || !r.token) {
-    throw new Error(r.error || 'เข้าสู่ระบบไม่สำเร็จ');
-  }
-  const user = toUser(r.user);
-  saveSession(r.user.email, r.token);
-  return { user, token: r.token };
-}
-
 interface AuthState {
   user: User | null;
+  /** รหัสผู้ใช้ปัจจุบัน — ส่งไปพร้อมทุกคำขอที่ต้องยืนยันตัวตน */
   token: string | null;
   /** true = ตั้งค่า Firebase ครบแล้วหรือยัง */
   ready: boolean;
-  login: (email: string, password: string) => Promise<string | null>;
+  /** เข้าสู่ระบบด้วย Google (ครั้งแรก = สมัครสมาชิกอัตโนมัติ) */
   loginWithGoogle: () => Promise<string | null>;
-  register: (name: string, email: string, password: string) => Promise<string | null>;
-  forgotPassword: (email: string) => Promise<string | null>;
   logout: () => void;
   busy: boolean;
 }
@@ -91,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const saved = readSession();
     if (!saved) {
-      // เก็บกวาดอีเมลค้างเมื่อรหัสผู้ใช้หาย (เช่น ล้างข้อมูลบางส่วน)
+      // เก็บกวาดอีเมลค้างเมื่อรหัสผู้ใช้หาย
       if (localStorage.getItem(SESSION_EMAIL)) clearSession();
       return;
     }
@@ -114,64 +91,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const run = useCallback(
-    async (fn: () => Promise<string | null>): Promise<string | null> => {
-      setBusy(true);
-      try {
-        return await fn();
-      } catch (e) {
-        return e instanceof Error ? e.message : 'ทำรายการไม่สำเร็จ';
-      } finally {
-        setBusy(false);
+  const loginWithGoogle = useCallback(async (): Promise<string | null> => {
+    setBusy(true);
+    try {
+      const acc = await signInWithGoogle();
+      // ส่ง ID Token ให้เซิร์ฟเวอร์ตรวจ แล้วจึงได้รหัสผู้ใช้ของเรา
+      const r = await apiFirebaseLogin(acc.idToken, acc.name);
+      if (!r.ok || !r.user || !r.token) {
+        return r.error || 'เข้าสู่ระบบไม่สำเร็จ';
       }
-    },
-    [],
-  );
-
-  const login = useCallback(
-    (email: string, password: string) =>
-      run(async () => {
-        const acc = await signInWithEmail(email, password);
-        const { user: u, token: t } = await exchangeWithServer(acc.idToken, acc.name);
-        setUser(u);
-        setToken(t);
-        return null;
-      }),
-    [run],
-  );
-
-  const loginWithGoogle = useCallback(
-    () =>
-      run(async () => {
-        const acc = await signInWithGoogle();
-        const { user: u, token: t } = await exchangeWithServer(acc.idToken, acc.name);
-        setUser(u);
-        setToken(t);
-        return null;
-      }),
-    [run],
-  );
-
-  const register = useCallback(
-    (name: string, email: string, password: string) =>
-      run(async () => {
-        const acc = await signUpWithEmail(email, password, name);
-        const { user: u, token: t } = await exchangeWithServer(acc.idToken, acc.name);
-        setUser(u);
-        setToken(t);
-        return null;
-      }),
-    [run],
-  );
-
-  const forgotPassword = useCallback(
-    (email: string) =>
-      run(async () => {
-        await requestPasswordReset(email);
-        return null;
-      }),
-    [run],
-  );
+      saveSession(r.user.email, r.token);
+      setToken(r.token);
+      setUser(toUser(r.user));
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : 'เข้าสู่ระบบไม่สำเร็จ';
+    } finally {
+      setBusy(false);
+    }
+  }, []);
 
   const logout = useCallback(() => {
     clearSession();
@@ -180,18 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({
-      user,
-      token,
-      ready,
-      login,
-      loginWithGoogle,
-      register,
-      forgotPassword,
-      logout,
-      busy,
-    }),
-    [user, token, ready, login, loginWithGoogle, register, forgotPassword, logout, busy],
+    () => ({ user, token, ready, loginWithGoogle, logout, busy }),
+    [user, token, ready, loginWithGoogle, logout, busy],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

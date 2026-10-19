@@ -75,14 +75,6 @@ export function apiSession(email: string, token: string) {
   return call('user.session', { email, token });
 }
 
-/** เปลี่ยนรหัสผ่าน */
-export function apiChangePassword(email: string, oldPassword: string, newPassword: string) {
-  return call('user.change_password', {
-    email,
-    old_password: oldPassword,
-    new_password: newPassword,
-  });
-}
 
 // ============================ ออเดอร์ / คลังไฟล์ ============================
 

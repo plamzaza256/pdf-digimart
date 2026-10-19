@@ -24,8 +24,8 @@ export interface User {
   email: string;
   /** เลขสมาชิกจากชีต (UID_0001 ถึง UID_9999) ใช้แสดงผลอย่างเดียว ใช้ล็อกอินไม่ได้ */
   userId?: string;
-  /** วิธีที่สมาชิกเข้าสู่ระบบ: อีเมล+รหัสผ่าน หรือ Google (ทั้งหมดจัดการโดย Firebase) */
-  loginMethod?: 'firebase';
+  /** วิธีที่สมาชิกเข้าสู่ระบบ (ปัจจุบันใช้ Google อย่างเดียว) */
+  loginMethod?: 'google';
   role: 'customer' | 'admin';
   createdAt: string;
 }

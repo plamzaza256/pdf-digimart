@@ -1,23 +1,12 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  updateProfile,
-  sendPasswordResetEmail,
-} from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { apiPublicConfig } from './api';
 
 /**
- * Firebase Authentication
+ * Firebase Authentication — เข้าสู่ระบบด้วย Google อย่างเดียว
  *
- * หน้าที่: จัดการการเข้าสู่ระบบ 2 แบบ
- *   1. อีเมล + รหัสผ่าน
- *   2. ปุ่ม "เข้าสู่ระบบด้วย Google"
- *
- * Firebase จัดการรหัสผ่านให้ (เก็บแบบเข้ารหัส) เว็บไม่เก็บรหัสผ่านไว้เลย
+ * ผู้ใช้ไม่ต้องตั้งรหัสผ่านเลย Firebase จัดการทั้งหมด
+ * ครั้งแรกที่กดปุ่ม = สร้างบัญชีให้อัตโนมัติ
  *
  * ค่าตั้ง Firebase ดึงจากเซิร์ฟเวอร์ก่อนใช้
  * → ไม่ต้องใส่ค่าใน Cloudflare Pages ทีละเว็บ
@@ -127,47 +116,6 @@ export interface FirebaseAccount {
   name: string;
 }
 
-/** สมัครด้วยอีเมล + รหัสผ่าน */
-export async function signUpWithEmail(
-  email: string,
-  password: string,
-  name: string,
-): Promise<FirebaseAccount> {
-  const auth = await getFirebaseAuth();
-  try {
-    const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-    if (name.trim()) {
-      await updateProfile(cred.user, { displayName: name.trim() });
-    }
-    return {
-      idToken: await cred.user.getIdToken(),
-      email: cred.user.email || email.trim(),
-      name: name.trim() || cred.user.displayName || '',
-    };
-  } catch (e) {
-    throw new Error(thaiError(errorCode(e)));
-  }
-}
-
-/** เข้าสู่ระบบด้วยอีเมล + รหัสผ่าน */
-export async function signInWithEmail(
-  email: string,
-  password: string,
-): Promise<FirebaseAccount> {
-  const auth = await getFirebaseAuth();
-  try {
-    const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-    return {
-      idToken: await cred.user.getIdToken(),
-      email: cred.user.email || email.trim(),
-      name: cred.user.displayName || '',
-    };
-  } catch (e) {
-    throw new Error(thaiError(errorCode(e)));
-  }
-}
-
-/** เข้าสู่ระบบด้วย Google (เปิดหน้าต่างป็อปอัพ) */
 export async function signInWithGoogle(): Promise<FirebaseAccount> {
   const auth = await getFirebaseAuth();
   const provider = new GoogleAuthProvider();
@@ -188,12 +136,3 @@ export async function signInWithGoogle(): Promise<FirebaseAccount> {
   }
 }
 
-/** ส่งอีเมลให้ตั้งรหัสผ่านใหม่ */
-export async function requestPasswordReset(email: string): Promise<void> {
-  const auth = await getFirebaseAuth();
-  try {
-    await sendPasswordResetEmail(auth, email.trim());
-  } catch (e) {
-    throw new Error(thaiError(errorCode(e)));
-  }
-}
