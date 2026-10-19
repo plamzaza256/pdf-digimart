@@ -18,10 +18,8 @@
  */
 
 // ============================ ตั้งค่า ============================
-// อีเมลของเจ้าของร้าน (เจ้าของชีต) — เปลี่ยนเป็นอีเมลจริงของคุณ
-// ⚠️ ค่านี้ต้องตรงกับ ADMIN_EMAILS ใน src/store/auth.tsx เสมอ
-//    ถ้าเปลี่ยนอีเมลเจ้าของร้าน ต้องแก้ 2 ที่ แล้ว Deploy ใหม่
-const ADMIN_EMAIL = '16052551mk@gmail.com';
+// อีเมลของเจ้าของร้าน (เจ้าของชีต) — แยกได้หลายคนด้วยเครื่องจุลภาค
+const ADMIN_EMAILS = ['16052551mk@gmail.com'];
 const ADMIN_NAME = 'เจ้าของร้าน';
 
 const SHEET_PRODUCTS = 'Products';
@@ -34,6 +32,19 @@ const SHEET_LIBRARY = 'Library';
 const SHEET_FILES = 'Files';
 
 const CATEGORY_LIST = ['หนังสือ', 'เอกสาร', 'ข้อสอบ'];
+
+/**
+ * Firebase Web API Key
+ *
+ * ⚠️ นี่คือ "Web API Key" ของ Firebase ซึ่งเป็นค่าสาธารณะ
+ *    มันถูกฝังอยู่ในหน้าเว็บของเราอยู่แล้ว (อยู่ในไฟล์ .env.local
+ *    ที่ถูก build เข้าไปใน JS) ใครก็เห็นได้
+ *    ดังนั้นการใส่ไว้ในโค้ดนี้จึงไม่ทำให้เสียหายอะไร
+ *    สิ่งที่ห้ามเปิดเผยคือ Service Account / Private Key เท่านั้น
+ *
+ * ใช้สำหรับ: ตรวจ Firebase ID Token ฝั่งเซิร์ฟเวอร์ (Identity Toolkit REST)
+ */
+const FIREBASE_API_KEY = 'AIzaSyClRefKialWmgE1Cp4wucTk--3L-TIhAzo';
 const DOC_LANG_LIST = ['th', 'en', 'other'];
 const DOC_TYPE_LIST = ['exam', 'worksheet', 'book', 'study_guide', 'other'];
 
@@ -189,8 +200,8 @@ function doGet(e) {
     if (action === 'config') return _json(_getConfig());
 
     if (action === 'order.list') {
-      if (!_isAdmin(p.admin_token)) return _json({ ok: false, error: 'ไม่มีสิทธิ์' });
-      return _json(_listOrders());
+      // 🛡 GET ที่ต้องล็อกอิน ต้องใช้ POST แทน (token ไม่ควรอยู่ใน URL)
+      return _json({ ok: false, error: 'ใช้ POST action=order.list แทน' });
     }
 
     return _json({ ok: false, error: 'ไม่รู้จักคำสั่ง: ' + action });
@@ -212,34 +223,33 @@ function doPost(e) {
 
     if (action === 'payment.submit') return _json(_submitPayment(body));
 
-    // --- ระบบสมาชิก: สมัคร / เข้าสู่ระบบ (ทุกคนเรียกได้) ---
-    if (action === 'user.signup') return _json(_signup(body));
-    if (action === 'user.login') return _json(_login(body));
+    // --- ระบบสมาชิก: เข้าสู่ระบบผ่าน Firebase (ทุกคนเรียกได้) ---
+    if (action === 'user.firebase') return _json(_firebaseLogin(body));
     if (action === 'user.session') return _json(_session(body));
-    if (action === 'user.change_password') return _json(_changePassword(body));
+
     if (action === 'user.check') return _json(_checkUser(body.email));
 
     // --- ฝั่งลูกค้า (ต้องล็อกอินด้วยอีเมล + token) ---
     if (action === 'library.list') return _json(_myLibrary(body));
     if (action === 'order.mine') return _json(_myOrders(body));
 
-    // --- ส่วนแอดมิน (ต้องส่งรหัสผู้ดูแล admin_token มาด้วย) ---
-    if (!_isAdmin(body.admin_token)) {
-      return _json({ ok: false, error: 'ไม่มีสิทธิ์เข้าถึง' });
-    }
+    // --- ส่วนแอดมิน (ต้องเป็น session ของเจ้าของร้านที่ยืนยันแล้ว) ---
+    const admin = _requireAdmin(body);
+    if (!admin.ok) return _json(admin);
 
     if (action === 'product.upsert') {
-      return _json(_upsertProduct(body.product || {}, body.admin_email || ''));
+      return _json(_upsertProduct(body.product || {}, admin.email));
     }
     if (action === 'order.verify') {
-      return _json(_verifyOrder(body.order_id, true, body.admin_email || ''));
+      return _json(_verifyOrder(body.order_id, true, admin.email));
     }
     if (action === 'order.reject') {
-      return _json(_verifyOrder(body.order_id, false, body.admin_email || ''));
+      return _json(_verifyOrder(body.order_id, false, admin.email));
     }
     if (action === 'library.revoke') {
       return _json(_revokeGrant(body.grant_id));
     }
+    if (action === 'order.list') return _json(_listOrders());
 
     return _json({ ok: false, error: 'ไม่รู้จักคำสั่ง: ' + action });
   } catch (err) {
@@ -499,55 +509,316 @@ function _checkUser(rawEmail) {
   return { ok: true, exists: true, user: _publicUser(found.row) };
 }
 
+// ============================ Firebase (ตรวจตัวตน) ============================
+
+/**
+ * อ่านค่า Firebase Project ID จาก Script Properties
+ * (ตั้งค่า: ไอคอนเฟือง → Script properties → FIREBASE_PROJECT_ID)
+ */
+function _firebaseProjectId() {
+  try {
+    return String(
+      PropertiesService.getScriptProperties().getProperty('FIREBASE_PROJECT_ID') || ''
+    ).trim();
+  } catch (err) {
+    return '';
+  }
+}
+
+/**
+ * ตรวจ Firebase ID Token กับเซิร์ฟเวอร์ของ Google โดยตรง
+ * คืนข้อมูลที่เชื่อถือได้ (อีเมลที่ยืนยันแล้ว) หรือ null ถ้าไม่ผ่าน
+ *
+ * 🛡 หลักการสำคัญ:
+ *   - ใช้ token แค่ดูว่าเป็นใคร ไม่ใช้ยืนยันตัวตนซ้ำทุกครั้ง
+ *   - เก็บ ID Token ไว้ในชีตหรือส่งกลับไปหาเบราว์เซอร์เด็ดขาด
+ *   - เมื่อผ่านแล้วออก "รหัสผู้ใช้" ของเราเองไปแทน
+ *   - เหตุที่ไม่ผ่าน บันทึกไว้ในบันทึกการดำเนินการของเจ้าของเท่านั้น
+ */
+function _verifyFirebaseToken(idToken) {
+  const token = String(idToken || '').trim();
+  const projectId = _firebaseProjectId();
+  if (!projectId) {
+    throw new Error('เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า Firebase (Script Properties: FIREBASE_PROJECT_ID)');
+  }
+  if (!token) {
+    Logger.log('[firebase] ไม่ได้ส่ง token มา');
+    return null;
+  }
+
+  let verified = null;
+  try {
+    verified = _verifyFirebaseIdToken(token);
+  } catch (err) {
+    Logger.log('[firebase] เรียก Google ไม่สำเร็จ: ' + err);
+    return { error: 'เรียก Google ไม่สำเร็จ (' + err + ')' };
+  }
+  if (verified && verified.error) return verified;
+  if (!verified) return { error: 'ตรวจไม่ผ่าน (ไม่ทราบสาเหตุ)' };
+
+  Logger.log('[firebase] ผ่านการตรวจ: ' + verified.email +
+    ' (วิธีเข้า: ' + verified.provider + ')');
+  return { email: verified.email, provider: verified.provider };
+}
+
+/**
+ * ตรวจ Firebase ID Token กับเซิร์ฟเวอร์ของ Google
+ *
+ * ใช้ปลายทาย accounts:lookup ของ Identity Toolkit
+ * (ปลายทาย tokeninfo / getAccountInfo ถูกปิดไปแล้ว ตอบ 404 ทั้งหมด)
+ *
+ * 🛡 หลักการ:
+ *   - Google ตรวจลายเซ็นดิจิทัลให้เราแล้ว จึงเชื่อถือได้
+ *   - ส่ง Web API key ของโปรเจกต์เราไปด้วย token ของโปรเจกต์อื่นจะหาไม่เจอ
+ *   - อ่าน payload ของ token มาเทียบ iss/aud อีกชั้นแบบกันพลาด
+ *   - ไม่เคยเก็บหรือส่ง token กลับไปไหน
+ */
+function _verifyFirebaseIdToken(token) {
+  const url = 'https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' +
+    encodeURIComponent(FIREBASE_API_KEY);
+
+  // ⚠️ Apps Script จะแนบหัว Authorization ของ OAuth ให้เองโดยอัตโนมัติ
+  //    ซึ่ง Identity Toolkit ไม่รับ (ต้องใช้ API key เท่านั้น)
+  //    การส่ง Authorization ว่างไปจึงจำเป็นต้องทำ
+  const res = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({ idToken: token }),
+    headers: { 'Authorization': '' },
+    muteHttpExceptions: true,
+    followRedirects: true,
+  });
+
+  const code = res.getResponseCode();
+  if (code !== 200) {
+    const body = String(res.getContentText()).slice(0, 200);
+    Logger.log('[firebase] accounts:lookup ตอบ ' + code + ' : ' + body);
+    return { error: 'http' + code, detail: body };
+  }
+
+  let data;
+  try {
+    data = JSON.parse(res.getContentText());
+  } catch (err) {
+    return { error: 'อ่านผลลัพธ์ไม่ได้' };
+  }
+  if (!data || !data.users || !data.users.length) {
+    return { error: 'Google ไม่พบผู้ใช้จาก token นี้' };
+  }
+
+  const u = data.users[0];
+  const email = String(u.email || '').trim().toLowerCase();
+  if (!email || email.indexOf('@') === -1) {
+    return { error: 'ไม่พบอีเมลในบัญชี' };
+  }
+
+  const info = u.providerUserInfo && u.providerUserInfo[0];
+  const provider = String((info && info.providerId) || 'password').toLowerCase();
+
+  // ชั้นกันพลาด: เทียบ iss/aud ว่าเป็นโปรเจกต์เราจริงไหม
+  const payload = _decodeJwtPayload(token);
+  if (payload) {
+    const projectId = _firebaseProjectId();
+    if (String(payload.iss || '') !==
+        'https://securetoken.google.com/' + projectId) {
+      Logger.log('[firebase] ผิดโปรเจกต์: ' + payload.iss);
+      return { error: 'token มาจากโปรเจกต์อื่น (iss ไม่ตรง)' };
+    }
+    if (payload.aud && String(payload.aud) !== projectId) {
+      Logger.log('[firebase] aud ไม่ตรง: ' + payload.aud);
+      return { error: 'aud ไม่ตรง (' + payload.aud + ')' };
+    }
+  }
+
+  // บัญชี Google ต้องยืนยันอีเมลแล้วเสมอ
+  // (บัญชีอีเมล+รหัสผ่าน ยังไม่ยืนยันก็ได้ จึงไม่บังคับ)
+  if (provider === 'google.com' && u.emailVerified !== true) {
+    Logger.log('[firebase] บัญชี Google ยังไม่ได้ยืนยันอีเมล');
+    return { error: 'บัญชี Google ยังไม่ได้ยืนยันอีเมล' };
+  }
+
+  return {
+    email: email,
+    provider: provider,
+    emailVerified: u.emailVerified === true
+  };
+}
+
+/**
+ * อ่าน payload ของ JWT (อ่านอย่างเดียว ไม่ได้ตรวจลายเซ็น)
+ * ใช้ประกอบกับผลจาก Google เท่านั้น ห้ามใช้ยืนยันตัวตนเพียงลำพัง
+ */
+function _decodeJwtPayload(token) {
+  const parts = String(token || '').split('.');
+  if (parts.length < 2) return null;
+  const b64 = parts[1];
+
+  // Apps Script แต่ละรุ่นคืนค่าจาก base64Decode ไม่เหมือนกัน
+  // (บางรุ่นคืน byte array บางรุ่นคืน string) จึงต้องลองทั้งสองแบบ
+  const attempts = [
+    function () {
+      let s = b64.replace(/-/g, '+').replace(/_/g, '/');
+      while (s.length % 4 !== 0) s += '=';
+      return Utilities.base64Decode(s);
+    },
+    function () {
+      return Utilities.base64DecodeWebSafe(b64);
+    },
+  ];
+
+  for (let i = 0; i < attempts.length; i++) {
+    try {
+      let raw = attempts[i]();
+      // ถ้าได้ byte array ให้แปลงเป็นข้อความก่อน
+      if (Object.prototype.toString.call(raw) === '[object Array]') {
+        raw = Utilities.newBlob(raw).getDataAsString('UTF-8');
+      }
+      const obj = JSON.parse(String(raw));
+      if (obj && typeof obj === 'object') return obj;
+    } catch (err) {
+      // ลองวิธีถัดไป
+    }
+  }
+  return null;
+}
+
+/**
+ * เข้าสู่ระบบผ่าน Firebase
+ * รับ Firebase ID Token → ตรวจกับ Google → ออกรหัสผู้ใช้ของเรา
+ * ครั้งแรกที่เข้ามาจะสร้างแถวในชีต user_id พร้อม UID ถัดไป
+ */
+function _firebaseLogin(body) {
+  let verified = null;
+  try {
+    verified = _verifyFirebaseToken(body.id_token);
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
+  if (!verified || !verified.email) {
+    // ส่งเหตุผลกลับไปด้วยระหว่างตั้งค่า เพื่อให้แก้จุดที่ผิดได้เร็ว
+    return {
+      ok: false,
+      error: 'การยืนยันตัวตนไม่ผ่าน: ' +
+        ((verified && verified.error) || 'ไม่ทราบสาเหตุ')
+    };
+  }
+
+  const email = verified.email;
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    // 🛡 ตรวจให้คอลัมน์ที่ต้องใช้มีอยู่จริงก่อนเขียน
+    //    ถ้ามองข้ามไว้ ระบบจะเขียนไม่ลงแล้วเงียบ ๆ (session พังเงียบ ๆ ตอนเปิดหน้าใหม่)
+    //    ต้องอยู่ใน lock เพราะ _ensureColumns มีการเขียนหัวตาราง
+    _ensureColumns(SHEET_USERS, ['token', 'login_method']);
+
+    const found = _findUserRow(email);
+    const today = _today();
+    let token = '';
+
+    if (found) {
+      // บัญชีเดิม → เก็บ UID / ชื่อ / วันที่สร้างไว้ แต้แต่แตะ last_login
+      _writeUserCell(found, 'last_login', today);
+      _writeUserCell(found, 'login_method', 'firebase');
+      token = _ensureToken(found);
+      return {
+        ok: true,
+        message: 'เข้าสู่ระบบสำเร็จ',
+        user: _publicUser(found.row),
+        token: token,
+        isAdmin: _isAdminEmail(email)
+      };
+    }
+
+    // บัญชีใหม่ → สร้างแถวใหม่
+    const userId = _nextUserId();
+    if (!userId) return { ok: false, error: 'เต็มจำนวนสมาชิกแล้ว' };
+
+    const headers = _header(SHEET_USERS);
+    const cols = headers.length;
+    const row = [];
+    for (let i = 0; i < cols; i++) row.push('');
+
+    const put = function (name, value) {
+      const c = headers.indexOf(name);
+      if (c !== -1) row[c] = value;
+    };
+    put('User_id', userId);
+    put('email', email);
+    // 🛡 ไม่เก็บรหัสผ่านในชีต — Firebase เป็นผู้เก็บและเข้ารหัสให้
+    put('password', '');
+    put('name', String(body.name || email.split('@')[0] || 'ลูกค้า'));
+    put('Creation date', today);
+    put('last_login', today);
+    put('token', _newToken());
+    put('login_method', 'firebase');
+
+    SpreadsheetApp.getActiveSpreadsheet()
+      .getSheetByName(SHEET_USERS).appendRow(row);
+
+    const created = _findUserRow(email);
+    if (created) token = _ensureToken(created);
+
+    return {
+      ok: true,
+      message: 'สร้างบัญชีใหม่เรียบร้อย',
+      user: created
+        ? _publicUser(created.row)
+        : { user_id: userId, email: email, name: '', created_at: today,
+            login_method: 'firebase' },
+      token: token,
+      isAdmin: _isAdminEmail(email)
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 // ============================ ตรวจสิทธิ์ (สำคัญมาก) ============================
 
 /**
  * ตรวจสิทธิ์ผู้ดูแลร้าน
  *
- * ⚠️ ข้อจำกัดของ Google Apps Script:
+ * หลักการ: อีเมลของผู้ดูแลต้องมาจาก session ที่ยืนยันแล้วเท่านั้น
+ * ซึ่ง session นั้นได้มาจากการตรวจ Firebase ID Token ที่เซิร์ฟเวอร์ Google
+ * ตรวจสอบเอง (ดูฟังก์ชัน firebaseLogin)
+ *
+ * ⚠️ ทำไมถึงต้องเป็นแบบนี้:
  *    ถ้า deploy แบบ "Anyone" Session.getActiveUser().getEmail()
- *    จะคืนค่าว่างเสมอ ใช้ระบุตัวตนไม่ได้ (เคยทำให้แอดมินเขียนชีตไม่ได้เลย)
- *
- *    วิธีที่ใช้ตอนนี้: เจ้าของร้านส่ง "รหัสผู้ดูแล" มาด้วยทุกคำขอ
- *    เก็บใน Script Properties ชื่อ ADMIN_TOKEN
- *    (ตั้งค่า: ไอคอนเฟือง → Script properties)
- *
- *    ⚠️ ข้อเสีย: รหัสนี้จะโผล่ในไฟล์ JS ของหน้าเว็บ คนที่แก้โค้ดเว็บดูได้
- *    ขั้นต่อไปคือยืนยันด้วย Google Sign-In ซึ่งปลอดภัยกว่า
+ *    จะคืนค่าว่างเสมอ ใช้ระบุตัวตนไม่ได้
+ *    เคยทำให้แอดมินเขียนชีตไม่ได้เลย
  */
-function _isAdmin(token) {
-  const want = String(_adminToken() || '');
-  if (!want) return false;      // ยังไม่ได้ตั้งรหัส → ปิดทั้งหมด (ปลอดภัยไว้ก่อน)
-  return _safeEqual(want, String(token || '').trim());
+function _isAdminEmail(email) {
+  const target = String(email || '').trim().toLowerCase();
+  if (!target) return false;
+  return ADMIN_EMAILS.map(function (e) { return String(e).trim().toLowerCase(); })
+    .indexOf(target) !== -1;
 }
 
-/** อ่านรหัสผู้ดูแล: ค่าใน Script Properties มาก่อน ถ้าไม่มีค่อยดูในแท็บ Config */
-function _adminToken() {
-  let v = '';
-  try {
-    v = String(PropertiesService.getScriptProperties().getProperty('ADMIN_TOKEN') || '');
-  } catch (err) {
-    v = '';
+/**
+ * ตรวจสิทธิ์ผู้ดูแลจากคำขอ
+ * คืน {ok:false} ถ้าไม่มี session หรืออีเมลไม่ใช่เจ้าของร้าน
+ */
+function _requireAdmin(body) {
+  const sess = _session(body);
+  if (!sess.ok) {
+    return { ok: false, error: 'กรุณาเข้าสู่ระบบก่อน' };
   }
-  return v || String(_getConfig('admin_token') || '');
+  if (!_isAdminEmail(sess.user.email)) {
+    return { ok: false, error: 'บัญชีนี้ไม่มีสิทธิ์ผู้ดูแลร้าน' };
+  }
+  sess.email = sess.user.email;
+  return sess;
 }
 
-/** ใช้ตอนทดสอบเท่านั้น: ดูว่าตอนนี้ตั้งรหัสผู้ดูแลแล้วหรือยัง */
+/** ใช้ตอนทดสอบเท่านั้น: ดูสถานะระบบ */
 function adminStatus() {
-  const t = _adminToken();
   return {
-    tokenSet: t.length > 0,
-    // คืนความยาวเท่านั้น ไม่คืนค่าตัวจริง
-    tokenLength: t.length,
-    source: (function () {
-      try {
-        if (PropertiesService.getScriptProperties().getProperty('ADMIN_TOKEN')) {
-          return 'Script Properties';
-        }
-      } catch (err) { /* ignore */ }
-      return t ? 'แท็บ Config' : 'ยังไม่ได้ตั้ง';
-    })(),
-    bankingOpen: _isOpen()
+    adminEmails: ADMIN_EMAILS,
+    firebaseProjectId: _firebaseProjectId() || '(ยังไม่ได้ตั้ง)',
+    bankingOpen: _isOpen(),
+    users: _readSheet(SHEET_USERS).length
   };
 }
 
@@ -727,19 +998,29 @@ function _grantLibrary(orderId, adminEmail) {
  * แก้คอลัมน์ active เป็น FALSE → ลูกค้าเห็นรายการอยู่แต่กดโหลดไม่ได้
  */
 function _revokeGrant(grantId) {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_LIBRARY);
-  const headers = _header(SHEET_LIBRARY);
-  const data = sh.getDataRange().getValues();
-  const cId = headers.indexOf('grant_id');
-  const cActive = headers.indexOf('active');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_LIBRARY);
+    const headers = _header(SHEET_LIBRARY);
+    const data = sh.getDataRange().getValues();
+    const cId = headers.indexOf('grant_id');
+    const cActive = headers.indexOf('active');
 
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][cId]) === String(grantId)) {
-      sh.getRange(i + 1, cActive + 1).setValue('FALSE');
-      return { ok: true, message: 'ถอดสิทธิ์แล้ว' };
+    if (cId === -1 || cActive === -1) {
+      return { ok: false, error: 'แท็บ Library ยังไม่มีคอลัมน์ที่ต้องใช้' };
     }
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][cId]) === String(grantId)) {
+        sh.getRange(i + 1, cActive + 1).setValue('FALSE');
+        return { ok: true, message: 'ถอดสิทธิ์แล้ว' };
+      }
+    }
+    return { ok: false, error: 'ไม่พบรายการที่ต้องการถอดสิทธิ์' };
+  } finally {
+    lock.releaseLock();
   }
-  return { ok: false, error: 'ไม่พบรายการที่ต้องการถอดสิทธิ์' };
 }
 
 /** เขียนค่าลงคอลัมน์ของแถวออเดอร์ โดยเลือกคอลัมน์จากชื่อ */
@@ -1121,10 +1402,5 @@ function _json(obj) {
 
 /** ใช้ตอนทดสอบเท่านั้น: ดูสถานะระบบ (ไม่เปิดเผยค่ารหัส) */
 function whoAmI() {
-  const email = Session.getActiveUser().getEmail() || '(ว่าง — เว็บแอปแบบ Anyone)';
-  return {
-    googleEmail: email,
-    admin: adminStatus(),
-    adminEmailForWeb: ADMIN_EMAIL
-  };
+  return adminStatus();
 }

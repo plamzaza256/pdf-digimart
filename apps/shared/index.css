@@ -174,3 +174,25 @@ a { color: inherit; }
   .nav-actions { gap: 6px; }
   .nav-actions .btn { padding: 6px 8px; font-size: 0.75rem; }
 }
+
+/* ---------- ระบบเข้าสู่ระบบ (Firebase) ---------- */
+.btn-block { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+
+.divider {
+  display: flex; align-items: center; gap: 12px;
+  margin: 20px 0; color: #6b7280; font-size: .9rem;
+}
+.divider::before, .divider::after {
+  content: ''; flex: 1; height: 1px; background: #e5e7eb;
+}
+
+.ok-msg {
+  color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0;
+  border-radius: 10px; padding: 10px 12px; margin: 0;
+}
+
+.link-btn {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: #2563eb; font: inherit; text-decoration: underline;
+}
+.link-btn:disabled { opacity: .5; cursor: default; }

@@ -4,7 +4,7 @@
 // ความปลอดภัยมาจากการตรวจสิทธิ์ฝั่ง Apps Script ไม่ใช่การซ่อน URL
 
 const API_URL =
-  'https://script.google.com/macros/s/AKfycbzz3-ldqt2ZiLbSGkV-bQ-K-OKAHjv9E60c3eKm0BsIevqsG-q7NdmHiFo9jCk77kHS/exec';
+  'https://script.google.com/macros/s/AKfycbw0bNY-QDZU7IEIPkjWkKCsukpiC9sYhJNWIyOpxeW527IxuA3GqbsEWo2M_HO4lcsl/exec';
 
 export interface ApiUser {
   user_id: string;
@@ -53,14 +53,13 @@ async function call(action: string, payload: Record<string, unknown> = {}): Prom
 
 // ============================ สมาชิก ============================
 
-/** สมัครสมาชิกใหม่ — ชีตจะกันอีเมลซ้ำให้อัตโนมัติ */
-export function apiSignup(name: string, email: string, password: string) {
-  return call('user.signup', { name, email, password });
-}
-
-/** เข้าสู่ระบบ — ต้องตรงทั้งอีเมลและรหัสผ่านในแถวเดียวกัน */
-export function apiLogin(email: string, password: string) {
-  return call('user.login', { email, password });
+/**
+ * เข้าสู่ระบบผ่าน Firebase
+ * รับ Firebase ID Token ที่หน้าเว็บได้มา → ส่งให้เซิร์ฟเวอร์ตรวจกับ Google
+ * เซิร์ฟเวอร์จะคืน "รหัสผู้ใช้" ของเรามาให้เก็บในเบราว์เซอร์
+ */
+export function apiFirebaseLogin(idToken: string, name?: string) {
+  return call('user.firebase', { id_token: idToken, name: name || '' });
 }
 
 /** ดึงข้อมูลเดิมของสมาชิก (ใช้ตอนกลับมาเข้าเว็บอีกครั้ง) */
@@ -83,6 +82,41 @@ export function apiChangePassword(email: string, oldPassword: string, newPasswor
     old_password: oldPassword,
     new_password: newPassword,
   });
+}
+
+// ============================ ออเดอร์ / คลังไฟล์ ============================
+
+export interface ApiOrder {
+  orderId: string;
+  createdAt: string;
+  customerName?: string;
+  customerEmail?: string;
+  userId?: string;
+  status: string;
+  total: number;
+  paymentRef?: string;
+  libraryGranted?: boolean;
+  items: { productId: string; title: string; price: number; qty: number }[];
+}
+
+/** ออเดอร์ทั้งหมด (เฉพาะผู้ดูแล) */
+export function apiOrderList(email: string, token: string) {
+  return call('order.list', { email, token });
+}
+
+/** ยืนยันว่าจ่ายเงินแล้ว → ระบบแจกสิทธิ์เข้าคลังไฟล์อัตโนมัติ */
+export function apiVerifyOrder(email: string, token: string, orderId: string) {
+  return call('order.verify', { email, token, order_id: orderId });
+}
+
+/** ปฏิเสธคำสั่งซื้อ (เฉพาะผู้ดูแล) */
+export function apiRejectOrder(email: string, token: string, orderId: string) {
+  return call('order.reject', { email, token, order_id: orderId });
+}
+
+/** ถอดสิทธิ์ดาวน์โหลด (เฉพาะผู้ดูแล) */
+export function apiRevokeGrant(email: string, token: string, grantId: string) {
+  return call('library.revoke', { email, token, grant_id: grantId });
 }
 
 // ============================ สินค้า ============================

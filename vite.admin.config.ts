@@ -11,6 +11,8 @@ const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
  */
 export default defineConfig({
   root: r('./apps/admin'),
+  // ให้ Vite อ่านไฟล์ .env.local จากรากโปรเจกต์ (ไม่ใช่จากโฟลเดอร์ของแต่ละเว็บ)
+  envDir: r('.'),
   publicDir: r('./public'),
   plugins: [react()],
   resolve: {
