@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@shared/store/auth';
 
 export default function Register() {
-  const { register, loginWithGoogle, busy, ready } = useAuth();
+  const { register, loginWithGoogle, busy } = useAuth();
   const nav = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -34,7 +34,7 @@ export default function Register() {
         type="button"
         className="btn btn-outline btn-lg btn-block"
         onClick={google}
-        disabled={busy || !ready}
+        disabled={busy}
       >
         <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
           <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.5 2.6 30.1 0 24 0 14.6 0 6.1 5.4 2.5 13.2l7.8 6.1C12.3 13.2 17.7 9.5 24 9.5z" />
@@ -52,7 +52,7 @@ export default function Register() {
         <label>อีเมล<input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required /></label>
         <label>ตั้งรหัสผ่าน<input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="อย่างน้อย 6 ตัวอักษร" required /></label>
         {err && <p className="error">{err}</p>}
-        <button className="btn btn-primary btn-lg" type="submit" disabled={busy || !ready}>
+        <button className="btn btn-primary btn-lg" type="submit" disabled={busy}>
           {busy ? 'กำลังสร้างบัญชี…' : 'สมัครสมาชิก'}
         </button>
       </form>

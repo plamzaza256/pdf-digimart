@@ -119,6 +119,43 @@ export function apiRevokeGrant(email: string, token: string, grantId: string) {
   return call('library.revoke', { email, token, grant_id: grantId });
 }
 
+// ============================ ค่าตั้งร้าน ============================
+
+/** ค่าที่หน้าเว็บต้องรู้ก่อนเริ่มทำงาน (Firebase + ข้อมูลร้าน) */
+export interface PublicConfig {
+  ok: boolean;
+  store_name: string;
+  promptpay_phone: string;
+  promptpay_name: string;
+  contact_line: string;
+  contact_email: string;
+  banking_open: boolean;
+  firebase: {
+    apiKey: string;
+    authDomain: string;
+    projectId: string;
+    appId: string;
+  };
+}
+
+let publicConfigCache: PublicConfig | null = null;
+
+/**
+ * ดึงค่าตั้งร้านจากเซิร์ฟเวอร์ (โหลดครั้งเดียว เก็บไว้ในหน่วยความจำ)
+ * ทำให้ไม่ต้องใส่ค่า Firebase ซ้ำในทุกเว็บที่ deploy
+ */
+export async function apiPublicConfig(): Promise<PublicConfig> {
+  if (publicConfigCache) return publicConfigCache;
+  const res = await fetch(`${API_URL}?action=public.config`);
+  if (!res.ok) throw new Error('โหลดค่าตั้งร้านไม่สำเร็จ');
+  const data = (await res.json()) as PublicConfig;
+  if (!data.ok || !data.firebase || !data.firebase.apiKey) {
+    throw new Error('เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า Firebase');
+  }
+  publicConfigCache = data;
+  return data;
+}
+
 // ============================ สินค้า ============================
 
 export async function apiListProducts() {

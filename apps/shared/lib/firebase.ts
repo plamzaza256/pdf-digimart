@@ -8,60 +8,79 @@ import {
   updateProfile,
   sendPasswordResetEmail,
 } from 'firebase/auth';
+import { apiPublicConfig } from './api';
 
 /**
  * Firebase Authentication
  *
- * หน้าที่ของไฟล์นี้: จัดการการเข้าสู่ระบบทั้ง 2 แบบ
+ * หน้าที่: จัดการการเข้าสู่ระบบ 2 แบบ
  *   1. อีเมล + รหัสผ่าน
  *   2. ปุ่ม "เข้าสู่ระบบด้วย Google"
  *
- * Firebase จัดการรหัสผ่านให้ (เก็บแบบเข้ารหัส)
- * เว็บไม่เก็บรหัสผ่านไว้ที่ใดเลย
+ * Firebase จัดการรหัสผ่านให้ (เก็บแบบเข้ารหัส) เว็บไม่เก็บรหัสผ่านไว้เลย
  *
- * หลังจากเข้าสู่ระบบสำเร็จ จะได้ ID Token มาส่งให้ Apps Script
- * ตรวจสอบต่อ (ดู auth.tsx และ lib/api.ts)
+ * ค่าตั้ง Firebase ดึงจากเซิร์ฟเวอร์ก่อนใช้
+ * → ไม่ต้องใส่ค่าใน Cloudflare Pages ทีละเว็บ
+ * → ถ้ามีค่าใน .env จะใช้ค่านั้นแทน (เร็วกว่า ไม่ต้องรอเครือข่าย)
  */
 
-// ค่าจากไฟล์ .env.local (หรือ Environment variables ของ Cloudflare Pages)
-// ดูตัวอย่างใน .env.example
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string | undefined,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID as string | undefined,
-};
+interface FirebaseOptions {
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  appId: string;
+}
 
-/** ตั้งค่าครบไหม — ถ้าไม่ครบจะแสดงคำอธิบายแทนหน้าล็อกอิน */
+const envConfig: FirebaseOptions | null =
+  import.meta.env.VITE_FIREBASE_API_KEY &&
+  import.meta.env.VITE_FIREBASE_PROJECT_ID
+    ? {
+        apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+        appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+      }
+    : null;
+
+/** โหลดค่าตั้งครั้งเดียว แล้วจำไว้ */
+let configPromise: Promise<FirebaseOptions> | null = null;
+
+async function loadConfig(): Promise<FirebaseOptions> {
+  if (!configPromise) {
+    configPromise = envConfig
+      ? Promise.resolve(envConfig)
+      : apiPublicConfig()
+          .then((c) => c.firebase)
+          .catch((e) => {
+            // ล้าง cache เพื่อให้ลองใหม่ได้
+            configPromise = null;
+            throw e instanceof Error
+              ? e.message
+              : 'โหลดค่าตั้ง Firebase ไม่สำเร็จ';
+          });
+  }
+  return configPromise;
+}
+
+/**
+ * พร้อมใช้งานหรือยัง
+ * true = ตั้งค่าใน .env ไว้ (ใช้ได้ทันที)
+ * false = ต้องรอดึงจากเซิร์ฟเวอร์ (ยังใช้ได้ แค่ช้ากว่าเล็กน้อย)
+ */
 export function isFirebaseConfigured(): boolean {
-  return Boolean(
-    firebaseConfig.apiKey &&
-      firebaseConfig.authDomain &&
-      firebaseConfig.projectId &&
-      firebaseConfig.appId,
-  );
+  return Boolean(envConfig);
 }
 
 let authInstance: ReturnType<typeof getAuth> | null = null;
 
-function getFirebaseAuth() {
-  if (!isFirebaseConfigured()) {
-    throw new Error('ยังไม่ได้ตั้งค่า Firebase บนเว็บนี้');
-  }
+async function getFirebaseAuth() {
+  const config = await loadConfig();
   if (!authInstance) {
     // เรียกได้หลายครั้งโดยไม่ error (Fast Refresh / หลาย entry)
-    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const app = getApps().length ? getApp() : initializeApp(config);
     authInstance = getAuth(app);
   }
   return authInstance;
-}
-
-/** ดึงรหัส error ของ Firebase ออกมาแบบไม่พังเมื่อ error เป็นชนิดอื่น */
-function errorCode(e: unknown): string {
-  if (e && typeof e === 'object' && 'code' in e) {
-    return String((e as { code: unknown }).code || '');
-  }
-  return '';
 }
 
 /** แปลงรหัสผิดของ Firebase เป็นข้อความไทยที่เข้าใจง่าย */
@@ -87,16 +106,25 @@ function thaiError(code: string): string {
       return 'ลองบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่';
     case 'auth/network-request-failed':
       return 'ต่อเน็ตไม่ได้ ลองเช็คอินเทอร์เน็ต';
+    case 'auth/operation-not-allowed':
+      return 'ยังไม่ได้เปิดวิธีนี้ใน Firebase (ต้องเปิด Email/Password หรือ Google)';
     default:
       return 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่';
   }
+}
+
+/** ดึงรหัส error ของ Firebase ออกมาแบบไม่พังเมื่อ error เป็นชนิดอื่น */
+function errorCode(e: unknown): string {
+  if (e && typeof e === 'object' && 'code' in e) {
+    return String((e as { code: unknown }).code || '');
+  }
+  return '';
 }
 
 export interface FirebaseAccount {
   idToken: string;
   email: string;
   name: string;
-  isNew: boolean;
 }
 
 /** สมัครด้วยอีเมล + รหัสผ่าน */
@@ -105,7 +133,7 @@ export async function signUpWithEmail(
   password: string,
   name: string,
 ): Promise<FirebaseAccount> {
-  const auth = getFirebaseAuth();
+  const auth = await getFirebaseAuth();
   try {
     const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
     if (name.trim()) {
@@ -115,7 +143,6 @@ export async function signUpWithEmail(
       idToken: await cred.user.getIdToken(),
       email: cred.user.email || email.trim(),
       name: name.trim() || cred.user.displayName || '',
-      isNew: true,
     };
   } catch (e) {
     throw new Error(thaiError(errorCode(e)));
@@ -127,14 +154,13 @@ export async function signInWithEmail(
   email: string,
   password: string,
 ): Promise<FirebaseAccount> {
-  const auth = getFirebaseAuth();
+  const auth = await getFirebaseAuth();
   try {
     const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
     return {
       idToken: await cred.user.getIdToken(),
       email: cred.user.email || email.trim(),
       name: cred.user.displayName || '',
-      isNew: false,
     };
   } catch (e) {
     throw new Error(thaiError(errorCode(e)));
@@ -143,7 +169,7 @@ export async function signInWithEmail(
 
 /** เข้าสู่ระบบด้วย Google (เปิดหน้าต่างป็อปอัพ) */
 export async function signInWithGoogle(): Promise<FirebaseAccount> {
-  const auth = getFirebaseAuth();
+  const auth = await getFirebaseAuth();
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   try {
@@ -154,20 +180,17 @@ export async function signInWithGoogle(): Promise<FirebaseAccount> {
       idToken: await cred.user.getIdToken(),
       email,
       name: cred.user.displayName || '',
-      isNew: false, // ให้เซิร์ฟเวอร์เป็นผู้ตัดสินว่าบัญชีนี้ใหม่หรือไม่
     };
   } catch (e) {
     const msg = thaiError(errorCode(e));
-    if (msg !== 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่') {
-      throw new Error(msg);
-    }
+    if (msg !== 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่') throw new Error(msg);
     throw new Error('เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาลองใหม่');
   }
 }
 
 /** ส่งอีเมลให้ตั้งรหัสผ่านใหม่ */
 export async function requestPasswordReset(email: string): Promise<void> {
-  const auth = getFirebaseAuth();
+  const auth = await getFirebaseAuth();
   try {
     await sendPasswordResetEmail(auth, email.trim());
   } catch (e) {

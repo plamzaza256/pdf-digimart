@@ -45,6 +45,7 @@ const CATEGORY_LIST = ['หนังสือ', 'เอกสาร', 'ข้อ
  * ใช้สำหรับ: ตรวจ Firebase ID Token ฝั่งเซิร์ฟเวอร์ (Identity Toolkit REST)
  */
 const FIREBASE_API_KEY = 'AIzaSyClRefKialWmgE1Cp4wucTk--3L-TIhAzo';
+const FIREBASE_APP_ID = '1:932991647595:web:3895a9242a57894da0562e';
 const DOC_LANG_LIST = ['th', 'en', 'other'];
 const DOC_TYPE_LIST = ['exam', 'worksheet', 'book', 'study_guide', 'other'];
 
@@ -198,6 +199,7 @@ function doGet(e) {
     if (action === 'products.list') return _json(_listProducts());
     if (action === 'product.detail') return _json(_productDetail(p.id));
     if (action === 'config') return _json(_getConfig());
+    if (action === 'public.config') return _json(getPublicConfig());
 
     if (action === 'order.list') {
       // 🛡 GET ที่ต้องล็อกอิน ต้องใช้ POST แทน (token ไม่ควรอยู่ใน URL)
@@ -810,6 +812,34 @@ function _requireAdmin(body) {
   }
   sess.email = sess.user.email;
   return sess;
+}
+
+/**
+ * ค่าที่หน้าเว็บต้องรู้ตอนเริ่มทำงาน
+ *
+ * 🛡 ค่าชุดนี้เป็นค่าสาธารณะทั้งหมด (Firebase Web config)
+ *    ไม่มีรหัสลับอยู่ในนี้ จึงเปิดเผยได้
+ *    ทำแบบนี้เพื่อให้ไม่ต้องไปใส่ค่าใน Cloudflare Pages ทีละเว็บ
+ *    มีจุดเดียวที่ต้องแก้: ที่โค้ดฝั่งเว็บของ Firebase
+ */
+function getPublicConfig() {
+  return {
+    ok: true,
+    store_name: String(_getConfig('store_name') || 'PDF ให้แม่มึงทำ'),
+    promptpay_phone: String(_getConfig('promptpay_phone') || ''),
+    promptpay_name: String(_getConfig('promptpay_name') || ''),
+    contact_line: String(_getConfig('contact_line') || ''),
+    contact_email: String(_getConfig('contact_email') || ''),
+    banking_open: String(_getConfig('banking_open')) === 'yes',
+    firebase: {
+      apiKey: FIREBASE_API_KEY,
+      authDomain: FIREBASE_API_KEY
+        ? (_firebaseProjectId() || '') + '.firebaseapp.com'
+        : '',
+      projectId: _firebaseProjectId(),
+      appId: FIREBASE_APP_ID
+    }
+  };
 }
 
 /** ใช้ตอนทดสอบเท่านั้น: ดูสถานะระบบ */
