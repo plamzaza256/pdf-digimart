@@ -21,10 +21,17 @@ export default function OrderLineButton({
   size = 'lg',
   productTitle,
 }: Props) {
-  const { lineOaLink } = useStoreConfig();
+  const { lineOaLink, loading } = useStoreConfig();
 
   const openLine = () => {
-    // ยังไม่ได้ตั้งลิงก์ LINE OA → เตือนแอดมิน/เจ้าของร้าน
+    // ⏳ ยังโหลดค่าร้านไม่เสร็จ — ลูกค้ากดเร็วเกินไป
+    //    ต้องรอ ไม่ใช่บอกว่า "ยังไม่ได้ตั้ง" (ซึ่งจะทำให้ลูกค้างงและเสียดี)
+    if (loading) {
+      alert('กำลังโหลดข้อมูลร้าน กรุณากดอีกครั้งในอีกสักครู่');
+      return;
+    }
+
+    // ❌ ยังไม่ได้ตั้งลิงก์ LINE OA จริงๆ — แจ้งเจ้าของร้าน
     if (!lineOaLink) {
       alert(
         'ยังไม่ได้ตั้งลิงก์ LINE OA ของร้าน\n\n' +
@@ -52,9 +59,11 @@ export default function OrderLineButton({
       type="button"
       className={`btn btn-line${size === 'lg' ? ' btn-lg' : ''}`}
       onClick={openLine}
+      disabled={loading}
+      title={loading ? 'กำลังโหลดข้อมูลร้าน…' : undefined}
     >
       <LineLogo size={size === 'lg' ? 22 : 18} />
-      {label}
+      {loading ? 'กำลังโหลด…' : label}
     </button>
   );
 }
