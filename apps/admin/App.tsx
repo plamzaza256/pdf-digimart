@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, NavLink } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@shared/store/auth';
 import { StoreConfigProvider } from '@shared/store/config';
 import Admin from './pages/Admin';
+import Sales from './pages/Sales';
 import { AdminShopProvider } from './store/products';
 
 /**
@@ -51,10 +52,12 @@ export default function App() {
       <StoreConfigProvider>
         <AuthProvider>
           <AdminShopProvider>
+            <AdminNav />
             <main className="main">
               <Routes>
                 <Route path="/login" element={<LoginGate />} />
                 <Route path="/products" element={<Admin />} />
+                <Route path="/sales" element={<Sales />} />
                 <Route path="*" element={<Navigate to="/login" replace />} />
               </Routes>
             </main>
@@ -62,5 +65,32 @@ export default function App() {
         </AuthProvider>
       </StoreConfigProvider>
     </HashRouter>
+  );
+}
+
+/** แถบเมนูของเว็บแอดมิน */
+function AdminNav() {
+  const { user, logout } = useAuth();
+  if (!user || user.role !== 'admin') return null;
+
+  return (
+    <header className="nav-wrap">
+      <nav className="nav">
+        <span className="brand">
+          <span className="brand-text">
+            จัดการร้าน
+            <small>PDF ให้แม่มึงทำ</small>
+          </span>
+        </span>
+        <div className="nav-links">
+          <NavLink to="/products">จัดการสินค้า</NavLink>
+          <NavLink to="/sales">บันทึกยอดขาย</NavLink>
+        </div>
+        <div className="nav-actions">
+          <span className="user-chip">{user.name}</span>
+          <button className="btn btn-outline" onClick={logout}>ออกจากระบบ</button>
+        </div>
+      </nav>
+    </header>
   );
 }

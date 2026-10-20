@@ -66,6 +66,12 @@ a { color: inherit; }
 .admin-settings .form { margin-top: 10px; }
 .ok-box { background: #dcfce7; border: 1px solid #86efac; color: #166534; padding: 10px 14px; border-radius: 10px; }
 .pill-mute { background: #f1f5f9; color: #64748b; }
+
+/* กล่องสรุปยอดขาย (หน้าแอดมิน) */
+.sales-stats { margin: 18px 0; }
+.stat-box { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 4px; box-shadow: var(--shadow); }
+.stat-box b { font-size: 1.6rem; color: var(--brand-dark); }
+.stat-box span { color: var(--muted); font-size: 0.85rem; }
 .star-icon { color: #f59e0b; }
 .star-icon.is-empty { color: #cbd5e1; }
 .full { width: 100%; }

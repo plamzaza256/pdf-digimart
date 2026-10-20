@@ -188,6 +188,35 @@ export function apiSetConfig(
   return call('config.set', { email, token, key, value });
 }
 
+/** บันทึกยอดขาย 1 รายการ (เฉพาะแอดมิน) */
+export function apiAddSale(
+  email: string,
+  token: string,
+  productId: string,
+  qty: number,
+  channel?: string,
+  note?: string,
+) {
+  return call('sales.add', {
+    email,
+    token,
+    product_id: productId,
+    qty,
+    channel: channel || 'LINE OA',
+    note: note || '',
+  });
+}
+
+/** รายการยอดขายทั้งหมด (เฉพาะแอดมิน) */
+export function apiSalesList(email: string, token: string) {
+  return call('sales.list', { email, token });
+}
+
+/** สรุปยอดขายรวม (เฉพาะแอดมิน) */
+export function apiSalesSummary(email: string, token: string) {
+  return call('sales.summary', { email, token });
+}
+
 export async function apiGetConfig() {
   const res = await fetch(`${API_URL}?action=config`);
   return (await res.json()) as Record<string, string>;
