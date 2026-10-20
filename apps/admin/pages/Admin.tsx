@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAdminShop } from '../store/products';
 import { useAuth } from '@shared/store/auth';
 import { useStoreConfig } from '@shared/store/config';
-import { apiSetConfig } from '@shared/lib/api';
+import { apiSetConfig, setApiUrl, getApiUrl } from '@shared/lib/api';
 import type { Category, Product } from '@shared/types';
 import { formatPrice } from '@shared/lib/format';
 
@@ -21,7 +21,6 @@ const empty: Product = {
   sales: 0,
   coverColor: '#1d4ed8',
   tags: [],
-  featured: false,
   status: 'published',
   createdAt: new Date().toISOString().slice(0, 10),
 };
@@ -36,6 +35,9 @@ export default function Admin() {
   const [lineLink, setLineLink] = useState('');
   const [lineMsg, setLineMsg] = useState('');
   const [lineSaving, setLineSaving] = useState(false);
+  const [serverUrl, setServerUrl] = useState(getApiUrl());
+  const [urlMsg, setUrlMsg] = useState('');
+  const [urlSaving, setUrlSaving] = useState(false);
 
   if (!user || user.role !== 'admin') {
     return (
@@ -80,6 +82,24 @@ export default function Admin() {
     setLineMsg(r.ok ? 'บันทึกลิงก์ LINE OA แล้ว' : r.error || 'บันทึกไม่สำเร็จ');
   };
 
+  /** 🔧 บันทึก URL ของเซิร์ฟเวอร์ (ไม่ต้อง rebuild เว็บ) */
+  const saveServerUrl = () => {
+    const url = serverUrl.trim();
+    if (!url) {
+      setUrlMsg('ยังไม่ได้ใส่ URL');
+      return;
+    }
+    if (url.indexOf('script.google.com/macros/') === -1) {
+      setUrlMsg('URL ไม่ถูกต้อง — ต้องเป็นลิงก์ /exec ของ Apps Script');
+      return;
+    }
+    setUrlSaving(true);
+    // 💾 บันทึกในเบราว์เซอร์ก่อน — ใช้ได้ทันทีโดยไม่ต้องรอเซิร์ฟเวอร์
+    setApiUrl(url);
+    setUrlSaving(false);
+    setUrlMsg('บันทึก URL แล้ว — รีเฟรชหน้าเพื่อใช้งาน');
+  };
+
   return (
     <div className="container page">
       <h1>จัดการสินค้า</h1>
@@ -100,6 +120,33 @@ export default function Admin() {
       {/* ---------------- ตั้งค่าร้าน ---------------- */}
       <section className="admin-settings">
         <h2 className="sec-title">ตั้งค่าร้าน</h2>
+
+        {/* 🔧 URL ของเซิร์ฟเวอร์ — แก้ได้เมื่อ deploy ใหม่แล้ว URL เปลี่ยน */}
+        <div className="form admin-form">
+          <label>
+            URL ของ Apps Script (เซิร์ฟเวอร์)
+            <input
+              className="input"
+              value={serverUrl}
+              onChange={(e) => setServerUrl(e.target.value)}
+              placeholder="https://script.google.com/macros/s/.../exec"
+            />
+          </label>
+          <p className="muted small">
+            ถ้าเว็บแสดงตัวเลขปลอม (เช่น "ขายแล้ว 3,105") แปลว่าเซิร์ฟเวอร์ URL เก่าใช้ไม่ได้
+            ให้วาง URL ใหม่จาก: Apps Script → จัดการการทำให้ใช้งานได้ → คัดลอก URL แอปเว็บ
+          </p>
+          <div className="form-row">
+            <button className="btn btn-primary" type="button" onClick={saveServerUrl} disabled={urlSaving}>
+              {urlSaving ? 'กำลังบันทึก…' : 'บันทึก URL'}
+            </button>
+            <button className="btn btn-outline" type="button" onClick={() => { setApiUrl(''); setServerUrl(''); setUrlMsg('ล้าง URL แล้ว — รีเฟรชหน้าเพื่อกลับไปใช้ค่าเริ่มต้น'); }}>
+              ล้างค่า
+            </button>
+          </div>
+          {urlMsg && <p className="muted small">{urlMsg}</p>}
+        </div>
+
         <div className="form admin-form">
           <label>
             ลิงก์ LINE OA ของร้าน
@@ -160,10 +207,9 @@ export default function Admin() {
             </select>
           </label>
         </div>
-        <div className="grid3">
+        <div className="grid2">
           <label>คะแนน (0-5)<input className="input" type="number" min={0} max={5} step={0.1} value={form.rating} onChange={(e) => setForm({ ...form, rating: Number(e.target.value) })} /></label>
           <label>ยอดขาย<input className="input" type="number" min={0} value={form.sales} onChange={(e) => setForm({ ...form, sales: Number(e.target.value) })} /></label>
-          <label className="check"><input type="checkbox" checked={!!form.featured} onChange={(e) => setForm({ ...form, featured: e.target.checked })} /> แสดงในสินค้าแนะนำ</label>
         </div>
         <div className="form-row">
           <button className="btn btn-primary" type="submit" disabled={saving}>

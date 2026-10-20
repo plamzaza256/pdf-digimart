@@ -1,5 +1,5 @@
 // ประเภทข้อมูลกลาง เตรียมไว้เชื่อมฐานข้อมูลจริงในอนาคต
-export type Category = 'หนังสือ' | 'เอกสาร' | 'ข้อสอบ';
+export type Category = 'ห้อแล้ว' | 'หนังสือ' | 'Flashcard' | 'อื่นๆ';
 
 export interface Product {
   id: string;
@@ -15,7 +15,6 @@ export interface Product {
   sales: number;
   coverColor: string;
   tags: string[];
-  featured?: boolean;
   /** สถานะการเผยแพร่ — เว็บร้านแสดงเฉพาะ published */
   status?: 'published' | 'draft' | 'archived';
   createdAt: string;

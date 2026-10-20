@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useShop } from '../store/shop';
 import { formatPrice } from '../data/products';
 import OrderLineButton from '@shared/components/OrderLineButton';
+import { parseFileSize } from '@shared/lib/fileSize';
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -18,6 +19,8 @@ export default function ProductDetail() {
   }
 
   const liked = isFavorite(p.id);
+  // 🔗 file_size อาจเป็นลิงก์ Google Drive
+  const fileInfo = parseFileSize(p.fileSize);
 
   return (
     <div className="container page detail">
@@ -70,7 +73,18 @@ export default function ProductDetail() {
           </div>
           <dl className="spec">
             <div><dt>รหัสสินค้า</dt><dd>{p.id}</dd></div>
-            <div><dt>รูปแบบไฟล์</dt><dd>{p.fileSize}</dd></div>
+            <div>
+              <dt>รูปแบบไฟล์</dt>
+              <dd>
+                {fileInfo.isLink ? (
+                  <a href={fileInfo.url} target="_blank" rel="noreferrer" className="link">
+                    {fileInfo.label} ↗
+                  </a>
+                ) : (
+                  fileInfo.label
+                )}
+              </dd>
+            </div>
             <div><dt>จำนวนหน้า</dt><dd>{p.pages} หน้า</dd></div>
             <div><dt>อัปเดต</dt><dd>{p.createdAt}</dd></div>
           </dl>

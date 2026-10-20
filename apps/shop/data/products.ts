@@ -2,7 +2,8 @@ import type { Product } from '@shared/types';
 
 // ข้อมูลสินค้าจำลอง 8 รายการ ครอบคลุม หนังสือ / เอกสาร / ข้อสอบ
 // หมายเหตุ: รุ่นแรกยังไม่เปิดดาวน์โหลดไฟล์จริง และไม่มีไฟล์ PDF ใน public/
-export const CATEGORIES = ['ทั้งหมด', 'หนังสือ', 'เอกสาร', 'ข้อสอบ'] as const;
+// 🗂️ หมวดหมู่ — ตรงกับ dropdown ในชีต Products
+export const CATEGORIES = ['ทั้งหมด', 'ห้อแล้ว', 'หนังสือ', 'Flashcard', 'อื่นๆ'] as const;
 
 export const mockProducts: Product[] = [
   {
@@ -11,7 +12,7 @@ export const mockProducts: Product[] = [
     description: 'สรุปคณิต ไทย อังกฤษ + แนวข้อสอบพร้อมเฉลยละเอียด 500 ข้อ',
     longDescription:
       'สรุปเนื้อหาสอบ ก.พ. ภาค ก ครบทุกวิชา คณิตศาสตร์ ภาษาไทย ภาษาอังกฤษ พร้อมเทคนิคทำข้อสอบให้ทันเวลา และแนวข้อสอบเสมือนจริง 5 ชุด เฉลยละเอียดทุกข้อ เหมาะสำหรับคนทำงานที่มีเวลาน้อย',
-    category: 'ข้อสอบ',
+    category: 'ห้อแล้ว',
     price: 199,
     oldPrice: 299,
     pages: 342,
@@ -20,7 +21,6 @@ export const mockProducts: Product[] = [
     sales: 2314,
     coverColor: '#1d4ed8',
     tags: ['ขายดี', 'แนะนำ'],
-    featured: true,
     createdAt: '2026-08-01',
   },
   {
@@ -38,7 +38,6 @@ export const mockProducts: Product[] = [
     sales: 1872,
     coverColor: '#0d9488',
     tags: ['แนะนำ'],
-    featured: true,
     createdAt: '2026-07-15',
   },
   {
@@ -47,7 +46,7 @@ export const mockProducts: Product[] = [
     description: 'ฝึกจับเวลาเสมือนจริง อัปเดตแนวข้อสอบล่าสุด',
     longDescription:
       'แนวข้อสอบ TOEIC ครบ 2 พาร์ต Listening + Reading รวม 5 ชุด พร้อมสคริปต์เสียง (คำอธิบาย) เฉลยละเอียด และลิสต์คำศัพท์ที่ออกสอบบ่อยที่สุด 1,000 คำพร้อมตัวอย่างประโยค',
-    category: 'ข้อสอบ',
+    category: 'ห้อแล้ว',
     price: 129,
     oldPrice: 199,
     pages: 486,
@@ -56,7 +55,6 @@ export const mockProducts: Product[] = [
     sales: 3105,
     coverColor: '#7c3aed',
     tags: ['ขายดี'],
-    featured: true,
     createdAt: '2026-06-20',
   },
   {
@@ -65,7 +63,7 @@ export const mockProducts: Product[] = [
     description: 'คู่มือยื่นภาษีด้วยตัวเอง เข้าใจใน 2 ชั่วโมง',
     longDescription:
       'สรุปวิธียื่นภาษี ภ.ง.ด. 90/91 ค่าลดหย่อนอัปเดตล่าสุด ตัวอย่างการกรอกทีละขั้นตอน และไฟล์ Excel ตัวอย่างการคำนวณ (อธิบายในเอกสาร) เหมาะสำหรับฟรีแลนซ์และมนุษย์เงินเดือน',
-    category: 'เอกสาร',
+    category: 'อื่นๆ',
     price: 99,
     pages: 96,
     fileSize: 'PDF • 6 MB',
@@ -73,7 +71,6 @@ export const mockProducts: Product[] = [
     sales: 954,
     coverColor: '#b45309',
     tags: [],
-    featured: false,
     createdAt: '2026-09-02',
   },
   {
@@ -90,7 +87,6 @@ export const mockProducts: Product[] = [
     sales: 1204,
     coverColor: '#be123c',
     tags: ['มาใหม่'],
-    featured: true,
     createdAt: '2026-09-20',
   },
   {
@@ -99,7 +95,7 @@ export const mockProducts: Product[] = [
     description: 'รวม 10 โรงเรียนดัง เฉลยวิธีคิดละเอียด',
     longDescription:
       'รวมแนวข้อสอบเข้า ม.1 โปรแกรมห้องพิเศษ Gifted และโรงเรียนสาธิต ครอบคลุมคณิตศาสตร์ วิทยาศาสตร์ และภาษาอังกฤษ พร้อมเฉลยวิธีคิดละเอียด ผู้ปกครองติวลูกเองได้',
-    category: 'ข้อสอบ',
+    category: 'ห้อแล้ว',
     price: 159,
     oldPrice: 229,
     pages: 398,
@@ -108,7 +104,6 @@ export const mockProducts: Product[] = [
     sales: 1688,
     coverColor: '#15803d',
     tags: ['ขายดี'],
-    featured: true,
     createdAt: '2026-05-11',
   },
   {
@@ -117,7 +112,7 @@ export const mockProducts: Product[] = [
     description: 'เทมเพลตสัญญาภาษาไทย เข้าใจง่าย ป้องกันโดนเบี้ยว',
     longDescription:
       'ชุดเอกสารสำหรับฟรีแลนซ์ ได้แก่ สัญญาจ้างทำของ ใบเสนอราคา ใบแจ้งหนี้ และหนังสือทวงถาม อธิบายวิธีกรอกทีละช่องด้วยภาษาเข้าใจง่าย (ไม่ใช่คำแนะนำทางกฎหมายอย่างเป็นทางการ)',
-    category: 'เอกสาร',
+    category: 'อื่นๆ',
     price: 79,
     pages: 54,
     fileSize: 'PDF • 4 MB',
@@ -125,7 +120,6 @@ export const mockProducts: Product[] = [
     sales: 642,
     coverColor: '#0e7490',
     tags: ['มาใหม่'],
-    featured: false,
     createdAt: '2026-09-28',
   },
   {
@@ -142,7 +136,6 @@ export const mockProducts: Product[] = [
     sales: 512,
     coverColor: '#6d28d9',
     tags: [],
-    featured: false,
     createdAt: '2026-10-01',
   },
 ];

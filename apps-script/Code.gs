@@ -36,7 +36,15 @@ const SHEET_LIBRARY = 'Library';
 const SHEET_FILES = 'Files';
 const SHEET_FAVORITES = 'Favorites';
 
-const CATEGORY_LIST = ['หนังสือ', 'เอกสาร', 'ข้อสอบ'];
+// 🗂️ หมวดหมู่ — ตรงกับ dropdown ในชีต (แก้ในชีตได้ แต่ถ้าเพิ่มค่าใหม่ต้องแจ้ง)
+const CATEGORY_LIST = ['ห้อแล้ว', 'หนังสือ', 'Flashcard', 'อื่นๆ'];
+
+/**
+ * 📊 สถานะสินค้า — ตรงกับ dropdown ในชีต
+ *    published = แสดงบนเว็บ
+ *    WIP / Paused / Discontinued = ไม่แสดงบนเว็บ (ยังอยู่ในชีต ประวัติยังอยู่)
+ */
+const PRODUCT_STATUS_LIST = ['published', 'WIP', 'Paused', 'Discontinued'];
 
 /**
  * Firebase Web API Key
@@ -73,7 +81,7 @@ function setupSheets() {
     'product_id', 'title', 'description', 'long_description', 'category',
     'document_language', 'description_language', 'document_type', 'tags',
     'price_satang', 'old_price_satang', 'pages', 'file_size',
-    'rating', 'sales', 'cover_color', 'featured', 'status', 'created_at'
+    'rating', 'sales', 'cover_color', 'status', 'created_at'
   ]);
 
   _ensureSheet(SHEET_ORDERS, [
@@ -284,6 +292,9 @@ function doPost(e) {
     }
     if (action === 'config.set') {
       return _json(_setConfig(body.key, body.value));
+    }
+    if (action === 'server.url.set') {
+      return _json(_setServerUrl(body.url));
     }
     if (action === 'order.verify') {
       return _json(_verifyOrder(body.order_id, true, admin.email));
@@ -944,9 +955,6 @@ function _listProducts() {
       rating: Number(r.rating || 0),
       sales: Number(r.sales || 0),
       coverColor: r.cover_color || '#1d4ed8',
-      // 🐛 ชีตเก็บ boolean จริง (true) ไม่ใช่ข้อความ "TRUE"
-      //    เดิมเช็คแบบเดียว → สินค้าแนะนำไม่เคยขึ้นหน้าแรกเลย
-      featured: r.featured === true || String(r.featured).toUpperCase() === 'TRUE',
       status: String(r.status || 'published'),
       createdAt: _fmtDate(r.created_at)
     });
@@ -1214,12 +1222,46 @@ function _listProductsAll() {
       rating: Number(r.rating || 0),
       sales: Number(r.sales || 0),
       coverColor: r.cover_color || '#1d4ed8',
-      featured: r.featured === true || String(r.featured).toUpperCase() === 'TRUE',
       status: String(r.status || 'published'),
       createdAt: _fmtDate(r.created_at)
     });
   }
   return { ok: true, products: out };
+}
+
+/**
+ * ตั้งค่า URL ของเซิร์ฟเวอร์เอง (เฉพาะแอดมิน)
+ *
+ * 🔴 ช่วงชักช่วง: ถ้าเปลี่ยน URL ของ Apps Script (เช่น deploy ใหม่)
+ *    เว็บจะเรียก URL เก่า = 404 = ข้อมูลปลอม
+ *    → ให้แก้ในหน้าเว็บนี้ได้เลย ไม่ต้องแก้โค้ด
+ *
+ * ⚠️ ข้อจำกัด: เว็บต้องรู้ URL ก่อนจะไปอ่านชีตได้
+ *    → จึงต้องเก็บ URL ไว้ใน localStorage ของเบราว์เซอร์ด้วย
+ */
+function _setServerUrl(url) {
+  const u = String(url || '').trim();
+  if (!u) return { ok: false, error: 'ไม่ได้ใส่ URL' };
+  if (u.indexOf('script.google.com/macros/') === -1) {
+    return { ok: false, error: 'URL ไม่ถูกต้อง — ต้องเป็นลิงก์ /exec ของ Apps Script' };
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const cfg = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CONFIG);
+    const data = cfg.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]) === 'server_url') {
+        cfg.getRange(i + 1, 2).setValue(u);
+        return { ok: true, message: 'บันทึก URL แล้ว', server_url: u };
+      }
+    }
+    cfg.appendRow(['server_url', u]);
+    return { ok: true, message: 'เพิ่ม URL แล้ว', server_url: u };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /**
@@ -1634,10 +1676,11 @@ function _upsertProduct(p) {
     rating: Number(p.rating || 0),
     sales: Number(p.sales || 0),
     cover_color: String(p.coverColor || '#1d4ed8'),
-    featured: p.featured === true || p.featured === 'true',
-    // ⚠️ ค่าเริ่มต้นต้องเป็น published ไม่ใช่ draft
-    //    เพราะ _listProducts กรองเฉพาะ published → ถ้าเป็น draft สินค้าจะไม่โผล่บนเว็บเลย
-    status: ['published', 'draft', 'archived'].indexOf(p.status) !== -1 ? p.status : 'published',
+    // 📊 สถานะจาก dropdown ในชีต
+    //    published = แสดงบนเว็บ / WIP, Paused, Discontinued = ไม่แสดง
+    //    ⚠️ ค่าเริ่มต้นต้องเป็น published ไม่ใช่ draft
+    //       เพราะ _listProducts กรองเฉพาะ published → ถ้าเป็นอื่น สินค้าจะไม่โผล่บนเว็บเลย
+    status: PRODUCT_STATUS_LIST.indexOf(p.status) !== -1 ? p.status : 'published',
     created_at: new Date()
   };
 

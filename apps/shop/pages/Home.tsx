@@ -4,7 +4,10 @@ import ProductCard from '../components/ProductCard';
 
 export default function Home() {
   const { products } = useShop();
-  const featured = products.filter((p) => p.featured).slice(0, 4);
+  // 🆕 สินค้าใหม่ล่าสุด (ไม่มีคอลัมน์ featured แล้ว — เจ้าของร้านลบทิ้ง)
+  const featured = [...products]
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+    .slice(0, 4);
   const bestSeller = [...products].sort((a, b) => b.sales - a.sales).slice(0, 4);
 
   return (
@@ -32,7 +35,7 @@ export default function Home() {
 
       <section className="container">
         <div className="sec-head">
-          <h2 className="sec-title">สินค้าแนะนำ</h2>
+          <h2 className="sec-title">สินค้าใหม่ล่าสุด</h2>
           <Link to="/shop" className="link">ดูทั้งหมด →</Link>
         </div>
         <div className="grid4">

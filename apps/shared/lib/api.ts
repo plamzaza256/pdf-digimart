@@ -3,8 +3,39 @@
 // หมายเหตุ: URL นี้เปิดสาธารณะได้ ไม่ใช่ข้อมูลลับ
 // ความปลอดภัยมาจากการตรวจสิทธิ์ฝั่ง Apps Script ไม่ใช่การซ่อน URL
 
-const API_URL =
+const DEFAULT_API_URL =
   'https://script.google.com/macros/s/AKfycbw0bNY-QDZU7IEIPkjWkKCsukpiC9sYhJNWIyOpxeW527IxuA3GqbsEWo2M_HO4lcsl/exec';
+
+/**
+ * 🔗 URL ของเซิร์ฟเวอร์
+ *
+ * ⚠️ เก็บใน localStorage ได้ เพื่อแก้ URL ได้เร็วเมื่อ deploy ใหม่
+ *    (ไม่ต้อง rebuild เว็บใหม่)
+ *    เจ้าของร้านตั้งค่าได้ที่: เว็บแอดมิน → จัดการสินค้า → ตั้งค่าร้าน
+ */
+const SERVER_URL_KEY = 'pdfshop_server_url_v1';
+
+export function getApiUrl(): string {
+  try {
+    const saved = localStorage.getItem(SERVER_URL_KEY);
+    if (saved && saved.trim()) return saved.trim();
+  } catch {
+    /* โหมดส่วนตัว — ใช้ค่าเริ่มต้น */
+  }
+  return DEFAULT_API_URL;
+}
+
+export function setApiUrl(url: string) {
+  try {
+    localStorage.setItem(SERVER_URL_KEY, url.trim());
+  } catch {
+    /* บันทึกไม่ได้ — ไม่เป็นไร */
+  }
+}
+
+function apiUrl(): string {
+  return getApiUrl();
+}
 
 export interface ApiUser {
   user_id: string;
@@ -34,7 +65,7 @@ interface ApiResult {
 async function call(action: string, payload: Record<string, unknown> = {}): Promise<ApiResult> {
   let res: Response;
   try {
-    res = await fetch(API_URL, {
+    res = await fetch(apiUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action, ...payload }),
@@ -142,7 +173,7 @@ let publicConfigCache: PublicConfig | null = null;
  */
 export async function apiPublicConfig(): Promise<PublicConfig> {
   if (publicConfigCache) return publicConfigCache;
-  const res = await fetch(`${API_URL}?action=public.config`);
+  const res = await fetch(`${apiUrl()}?action=public.config`);
   if (!res.ok) throw new Error('โหลดค่าตั้งร้านไม่สำเร็จ');
   const data = (await res.json()) as PublicConfig;
   if (!data.ok || !data.firebase || !data.firebase.apiKey) {
@@ -155,7 +186,7 @@ export async function apiPublicConfig(): Promise<PublicConfig> {
 // ============================ สินค้า ============================
 
 export async function apiListProducts() {
-  const res = await fetch(`${API_URL}?action=products.list`);
+  const res = await fetch(`${apiUrl()}?action=products.list`);
   return (await res.json()) as { ok: boolean; products: unknown[] };
 }
 
@@ -189,7 +220,7 @@ export function apiSetConfig(
 }
 
 export async function apiGetConfig() {
-  const res = await fetch(`${API_URL}?action=config`);
+  const res = await fetch(`${apiUrl()}?action=config`);
   return (await res.json()) as Record<string, string>;
 }
 
