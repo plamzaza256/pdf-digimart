@@ -1576,13 +1576,32 @@ function _upsertProduct(p) {
 
     if (found > 0) {
       // แก้ไข: เขียนทีละคอลัมน์ตามชื่อ (ไม่ทับ created_at เดิม)
+      //
+      // 🛡 ข้ามช่องที่มีสูตรอยู่
+      //    เจ้าของร้านใช้สูตรในชีต (เช่นคำนวณยอดรวม)
+      //    ถ้าเขียนทับ → สูตรหายถาวร แก้ยากมาก
+      //    → ให้ระบบข้ามไป แล้วแจ้งว่าข้ามคอลัมน์ไหนบ้าง
+      const formulas = sh.getRange(found, 1, 1, headers.length).getFormulas()[0] || [];
+      const skipped = [];
+
       for (const name in values) {
         if (name === 'created_at') continue;
         const c = headers.indexOf(name);
         if (c === -1) continue;
+
+        // 🔒 ช่องนี้มีสูตรอยู่ → ห้ามเขียนทับ
+        if (String(formulas[c] || '').charAt(0) === '=') {
+          skipped.push(name);
+          continue;
+        }
+
         sh.getRange(found, c + 1).setValue(values[name]);
       }
-      return { ok: true, message: 'บันทึกการแก้ไขแล้ว', id: id };
+
+      const note = skipped.length
+        ? ' (ข้ามช่องที่มีสูตร: ' + skipped.join(', ') + ')'
+        : '';
+      return { ok: true, message: 'บันทึกการแก้ไขแล้ว' + note, id: id, skipped: skipped };
     }
 
     // เพิ่มใหม่: เตรียมแถวตามจำนวนคอลัมน์จริงในชีต แล้วเขียนตามชื่อ
