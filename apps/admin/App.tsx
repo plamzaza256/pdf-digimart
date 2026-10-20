@@ -4,6 +4,7 @@ import { HashRouter, Routes, Route, Navigate, NavLink } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@shared/store/auth';
 import { StoreConfigProvider } from '@shared/store/config';
 import Admin from './pages/Admin';
+import SheetView from './pages/SheetView';
 import { AdminShopProvider } from './store/products';
 
 /**
@@ -56,6 +57,7 @@ export default function App() {
               <Routes>
                 <Route path="/login" element={<LoginGate />} />
                 <Route path="/products" element={<Admin />} />
+                <Route path="/sheet" element={<SheetView />} />
                 <Route path="*" element={<Navigate to="/login" replace />} />
               </Routes>
             </main>
@@ -82,6 +84,7 @@ function AdminNav() {
         </span>
         <div className="nav-links">
           <NavLink to="/products">จัดการสินค้า</NavLink>
+          <NavLink to="/sheet">ดูชีต</NavLink>
         </div>
         <div className="nav-actions">
           <span className="user-chip">{user.name}</span>

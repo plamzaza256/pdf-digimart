@@ -69,6 +69,12 @@ a { color: inherit; }
 .ok-box { background: #dcfce7; border: 1px solid #86efac; color: #166534; padding: 10px 14px; border-radius: 10px; }
 .pill-mute { background: #f1f5f9; color: #64748b; }
 
+/* 🧪 หน้า "ดูชีต" */
+.sheet-view { margin-top: 18px; }
+.sheet-view h3 { margin: 22px 0 10px; font-size: 1rem; }
+.sheet-view code { background: #f1f5f9; padding: 2px 6px; border-radius: 5px; font-size: 0.85em; }
+.cell-formula { background: #f0fdf4; }
+
 .star-icon { color: #f59e0b; }
 .star-icon.is-empty { color: #cbd5e1; }
 .full { width: 100%; }

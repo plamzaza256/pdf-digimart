@@ -193,6 +193,11 @@ export async function apiGetConfig() {
   return (await res.json()) as Record<string, string>;
 }
 
+/** 🧪 ดูโครงสร้างชีตทั้งหมด (เฉพาะแอดมิน) — ชื่อแท็บ/คอลัมน์/สูตร/dropdown */
+export function apiSheetInspect(email: string, token: string) {
+  return call('sheet.inspect', { email, token });
+}
+
 // ============================ ⭐ สินค้าที่ถูกใจ ============================
 
 /** ดึงดาวถูกใจของผู้ใช้ที่ล็อกอินอยู่ (ผูกกับอีเมล) */

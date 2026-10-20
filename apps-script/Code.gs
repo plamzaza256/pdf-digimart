@@ -262,6 +262,13 @@ function doPost(e) {
     if (action === 'favorite.remove') return _json(_toggleFavorite(body, false));
     if (action === 'favorite.sync') return _json(_syncFavorites(body));
 
+    // --- 🧪 ตรวจโครงสร้างชีต (เฉพาะแอดมิน) ---
+    if (action === 'sheet.inspect') {
+      const insp = _requireAdmin(body);
+      if (!insp.ok) return _json(insp);
+      return _json(_sheetInspector());
+    }
+
     // --- ส่วนแอดมิน (ต้องเป็น session ของเจ้าของร้านที่ยืนยันแล้ว) ---
     const admin = _requireAdmin(body);
     if (!admin.ok) return _json(admin);
@@ -952,6 +959,79 @@ function _productDetail(id) {
   const found = all.products.filter(function (p) { return p.id === id; })[0];
   if (!found) return { ok: false, error: 'ไม่พบสินค้า' };
   return { ok: true, product: found };
+}
+
+/**
+ * 🧪 ดูโครงสร้างชีตทั้งหมด (สำหรับนักพัฒนา / เจ้าของร้านตรวจงาน)
+ *
+ * คืน: รายชื่อแท็บ + ชื่อคอลัมน์ + สูตร + dropdown + ตัวอย่างข้อมูล
+ * 🔒 ต้องเป็นผู้ดูแลร้าน (ต้องมี session)
+ */
+function _sheetInspector() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = [];
+
+  for (let i = 0; i < ss.getSheets().length; i++) {
+    const sh = ss.getSheets()[i];
+    const name = sh.getName();
+    const lastRow = sh.getLastRow();
+    const lastCol = sh.getLastColumn();
+
+    if (lastRow === 0) {
+      sheets.push({ name: name, empty: true });
+      continue;
+    }
+
+    const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+      return String(h || '');
+    });
+
+    // 🧮 สูตรในแถว 1-3 (มักเป็นที่ทำ dropdown/สูตรคำนวณ)
+    const sampleRows = Math.min(3, lastRow);
+    const formulas = sh.getRange(1, 1, sampleRows, lastCol).getFormulas();
+    const values = sh.getRange(1, 1, sampleRows, lastCol).getValues();
+
+    // 🔽 dropdown (data validation) ของแต่ละคอลัมน์
+    const validations = [];
+    for (let c = 0; c < lastCol; c++) {
+      try {
+        const v = sh.getRange(2, c + 1).getDataValidation();
+        if (v) {
+          validations.push({
+            column: headers[c] || ('col' + (c + 1)),
+            type: String(v.getCriteriaType() || ''),
+            values: v.getCriteriaValues() || []
+          });
+        }
+      } catch (e) {
+        // ช่องนี้ไม่มี validation — ข้าม
+      }
+    }
+
+    // 📋 แถวตัวอย่าง
+    const rows = [];
+    for (let r = 1; r < sampleRows; r++) {
+      const row = {};
+      for (let c = 0; c < lastCol; c++) {
+        const key = headers[c] || ('col' + (c + 1));
+        const f = String(formulas[r][c] || '');
+        const v = values[r][c];
+        row[key] = f.charAt(0) === '=' ? f : v;
+      }
+      rows.push(row);
+    }
+
+    sheets.push({
+      name: name,
+      rowCount: lastRow - 1,
+      columnCount: lastCol,
+      headers: headers,
+      validations: validations,
+      sampleRows: rows
+    });
+  }
+
+  return { ok: true, sheets: sheets };
 }
 
 /**
