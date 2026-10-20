@@ -27,7 +27,6 @@ const ADMIN_EMAILS = ['16052551k@gmail.com', '16052551mk@gmail.com'];
 const ADMIN_NAME = 'เจ้าของร้าน';
 
 const SHEET_PRODUCTS = 'Products';
-const SHEET_SALES = 'Sales';
 const SHEET_ORDERS = 'Orders';
 const SHEET_ORDER_ITEMS = 'OrderItems';
 const SHEET_PAYMENTS = 'PaymentSubmissions';
@@ -104,11 +103,6 @@ function setupSheets() {
   ]);
   _ensureSheet(SHEET_FILES, [
     'product_id', 'file_code', 'file_name', 'drive_url', 'file_size', 'updated_at'
-  ]);
-  // 🧾 แท็บบันทึกยอดขาย — เจ้าของร้านบันทึกเองทีละแถว
-  //    เว็บจะรวมยอดขายจากแท็บนี้ให้อัตโนมัติ
-  _ensureSheet(SHEET_SALES, [
-    'sale_id', 'sold_at', 'product_id', 'qty', 'price_satang', 'total_satang', 'channel', 'note'
   ]);
   _seedConfig();
   _seedProducts();
@@ -271,15 +265,6 @@ function doPost(e) {
     }
     if (action === 'config.set') {
       return _json(_setConfig(body.key, body.value));
-    }
-    if (action === 'sales.add') {
-      return _json(_addSale(body));
-    }
-    if (action === 'sales.list') {
-      return _json(_listSales());
-    }
-    if (action === 'sales.summary') {
-      return _json(_salesSummary());
     }
     if (action === 'order.verify') {
       return _json(_verifyOrder(body.order_id, true, admin.email));
@@ -910,35 +895,9 @@ function _isOpen() {
 
 // ============================ อ่านข้อมูล ============================
 
-/**
- * รวมยอดขายจากแท็บ Sales
- *
- * 🧾 เจ้าของร้านบันทึกยอดขายเองในแท็บ Sales (ทีละแถว)
- *    ระบบรวมให้เป็นยอดรวมต่อสินค้า แล้วส่งไปให้เว็บโชว์
- *    → ไม่ต้องแก้เลขยอดขายในแท็บ Products ทุกครั้ง
- *
- * @param {Array} rows แถวของแท็บ Products
- * @return {Object} map: { product_id: จำนวนที่ขายได้ }
- */
-function _salesTotalsByProduct() {
-  const totals = {};
-  const sales = _readSheet(SHEET_SALES);
-  for (let i = 0; i < sales.length; i++) {
-    const s = sales[i];
-    const pid = String(s.product_id || '').trim();
-    if (!pid) continue;
-    const qty = Math.max(0, Number(s.qty || 0));
-    totals[pid] = (totals[pid] || 0) + qty;
-  }
-  return totals;
-}
-
 function _listProducts() {
   const rows = _readSheet(SHEET_PRODUCTS);
   if (rows.length === 0) return { ok: true, products: [] };
-
-  // 📊 ยอดขายจริงจากแท็บ Sales (ถ้ายังไม่มีแท็บ/ไม่มีข้อมูล → ใช้ 0)
-  const salesTotals = _salesTotalsByProduct();
 
   const out = [];
   for (let i = 0; i < rows.length; i++) {
@@ -964,11 +923,7 @@ function _listProducts() {
       pages: Number(r.pages || 0),
       fileSize: r.file_size,
       rating: Number(r.rating || 0),
-      // 🧾 ใช้ยอดขายจริงจากแท็บ Sales ถ้ามี
-      //    ถ้ายังไม่มีแท็บ Sales เลย → ใช้เลขในคอลัมน์ sales ของ Products ไปก่อน
-      sales: salesTotals[String(r.product_id)] !== undefined
-        ? salesTotals[String(r.product_id)]
-        : Number(r.sales || 0),
+      sales: Number(r.sales || 0),
       coverColor: r.cover_color || '#1d4ed8',
       // 🐛 ชีตเก็บ boolean จริง (true) ไม่ใช่ข้อความ "TRUE"
       //    เดิมเช็คแบบเดียว → สินค้าแนะนำไม่เคยขึ้นหน้าแรกเลย
@@ -1022,117 +977,6 @@ function _listProductsAll() {
     });
   }
   return { ok: true, products: out };
-}
-
-/**
- * บันทึกยอดขาย 1 รายการ (เฉพาะแอดมิน)
- *
- * 🧾 เจ้าของร้านกดบันทึกยอดขายเองได้จากหน้าเว็บแอดมิน
- *    ระบบเขียนลงแท็บ Sales แล้วรวมยอดให้เว็บอัตโนมัติ
- */
-function _addSale(body) {
-  const productId = String(body.product_id || '').trim();
-  const qty = Math.max(1, Math.min(999, Number(body.qty || 1)));
-  if (!productId) return { ok: false, error: 'ไม่ระบุสินค้า' };
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    // ต้องมีสินค้านี้จริง — กันบันทึกยอดขายของสินค้าที่ไม่มี
-    const products = _readSheet(SHEET_PRODUCTS);
-    let found = null;
-    for (let i = 0; i < products.length; i++) {
-      if (String(products[i].product_id) === productId) { found = products[i]; break; }
-    }
-    if (!found) return { ok: false, error: 'ไม่พบสินค้านี้ในชีต' };
-
-    // 💰 ราคาจริง = ราคาปัจจุบันในชีต (ไม่เชื่อค่าที่ส่งมาจากเบราว์เซอร์)
-    const priceSatang = Number(found.price_satang || 0);
-    const totalSatang = priceSatang * qty;
-    const today = _today();
-
-    _appendRow(SHEET_SALES, [
-      Utilities.getUuid(),
-      today,
-      productId,
-      qty,
-      priceSatang,
-      totalSatang,
-      String(body.channel || 'LINE OA'),
-      String(body.note || '')
-    ]);
-
-    return {
-      ok: true,
-      message: 'บันทึกยอดขายแล้ว',
-      product_id: productId,
-      qty: qty,
-      total: Math.round(totalSatang / 100)
-    };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/**
- * รายการยอดขายทั้งหมด (เฉพาะแอดมิน)
- */
-function _listSales() {
-  const rows = _readSheet(SHEET_SALES);
-  const products = _readSheet(SHEET_PRODUCTS);
-
-  const items = rows.map(function (r) {
-    let title = '';
-    for (let i = 0; i < products.length; i++) {
-      if (String(products[i].product_id) === String(r.product_id)) {
-        title = String(products[i].title || '');
-        break;
-      }
-    }
-    return {
-      saleId: r.sale_id,
-      soldAt: _fmtDate(r.sold_at),
-      productId: r.product_id,
-      title: title,
-      qty: Number(r.qty || 0),
-      price: Math.round(Number(r.price_satang || 0) / 100),
-      total: Math.round(Number(r.total_satang || 0) / 100),
-      channel: r.channel,
-      note: r.note
-    };
-  });
-
-  // ใหม่สุดอยู่บนสุด
-  items.reverse();
-  return { ok: true, items: items };
-}
-
-/**
- * สรุปยอดขายรวม (เฉพาะแอดมิน)
- */
-function _salesSummary() {
-  const rows = _readSheet(SHEET_SALES);
-  let totalQty = 0;
-  let totalSatang = 0;
-  const byProduct = {};
-
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i];
-    const pid = String(r.product_id || '').trim();
-    const qty = Number(r.qty || 0);
-    const satang = Number(r.total_satang || 0);
-    totalQty += qty;
-    totalSatang += satang;
-    if (pid) byProduct[pid] = (byProduct[pid] || 0) + qty;
-  }
-
-  return {
-    ok: true,
-    count: rows.length,
-    totalQty: totalQty,
-    totalRevenue: Math.round(totalSatang / 100),
-    byProduct: byProduct
-  };
 }
 
 /**
