@@ -60,6 +60,10 @@ export default function ProductDetail() {
               </button>
               <OrderLineButton size="lg" productTitle={p.title} />
             </div>
+            {/* ลิงก์แบบ short (lin.ee/xxx) ต่อ ?text= ไม่ได้ → ต้องให้ลูกค้าเห็นชื่อสินค้าบนหน้าเว็บแทน */}
+            <p className="muted small">
+              แจ้งชื่อสินค้านี้ในแชท: <b>{p.title}</b>
+            </p>
             <p className="muted small">
               กดสั่งซื้อเพื่อไปที่ LINE OA ของร้าน สอบถามรายละเอียดและชำระเงินได้ที่นั่น
             </p>

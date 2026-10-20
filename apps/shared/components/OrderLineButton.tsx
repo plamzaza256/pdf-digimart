@@ -33,9 +33,14 @@ export default function OrderLineButton({
       return;
     }
 
+    // 🔗 ลิงก์แบบ "line.me/R/ti/p/@xxxx" หรือ "line.me/ti/p/~xxxx" เท่านั้นที่รับพารามิเตอร์ text
+    //    ถ้าเป็น short link แบบ lin.ee/xxxx การเติม ?text= จะทำให้ลิงก์พัง
+    //    → ถ้าเป็น short link ให้เปิดลิงก์เปล่า แล้วแสดงชื่อสินค้าให้ลูกค้าเห็นบนหน้าเว็บแทน
+    const isShortLink = /(^|\/\/)lin\.ee\//i.test(lineOaLink);
+    const supportsText = !isShortLink;
+
     let url = lineOaLink;
-    // แนบชื่อสินค้าไว้ในข้อความเริ่มต้น (LINE รองรับพารามิเตอร์ text)
-    if (productTitle) {
+    if (productTitle && supportsText) {
       url += (url.includes('?') ? '&' : '?') +
         'text=' + encodeURIComponent(`สนใจสินค้า: ${productTitle}`);
     }
