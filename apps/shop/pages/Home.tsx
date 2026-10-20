@@ -11,15 +11,13 @@ export default function Home() {
     <div>
       <section className="hero container">
         <div className="hero-text">
-          <span className="pill pill-hot">ไฟล์ PDF คัดสรร</span>
           <h1>
-            ร้านไฟล์ PDF ภาษาอังกฤษ
+            Mock Test By
             <br />
-            หนังสือ • เอกสาร • ข้อสอบ
+            ให้แม่มึงทำ
           </h1>
           <p>
-            เลือกดูตัวอย่างสินค้า ถ้าถูกใจกดดาวเก็บไว้
-            แล้วกดสั่งซื้อเพื่อไปสั่งซื้อที่ LINE OA ของร้านได้เลย
+            เลือกดูตัวอย่างสินค้า แล้วกดสั่งซื้อผ่าน LINE OA ของร้านได้เลย
           </p>
           <div className="hero-cta">
             <Link to="/shop" className="btn btn-primary btn-lg">เลือกดูสินค้า</Link>
@@ -29,19 +27,6 @@ export default function Home() {
             <li>✅ สั่งซื้อผ่าน LINE OA สะดวก คุยกับเจ้าของร้านได้เลย</li>
             <li>✅ ส่งไฟล์ให้ทันทีหลังยืนยันยอด</li>
           </ul>
-        </div>
-        <div className="hero-art" aria-hidden>
-          <div className="hero-doc d1"><span>PDF</span>คู่มือสอบ ก.พ.</div>
-          <div className="hero-doc d2"><span>PDF</span>TOEIC 5 ชุด</div>
-          <div className="hero-doc d3"><span>PDF</span>ขายของออนไลน์</div>
-        </div>
-      </section>
-
-      <section className="container">
-        <h2 className="sec-title">ทำไมต้องร้านนี้</h2>
-        <div className="grid2">
-          <div className="feat"><b>📚 เนื้อหาภาษาไทยล้วน</b><p>สรุปเข้าใจง่าย อ่านรู้เรื่อง ไม่ต้องเปิดดิกทุกบรรทัด</p></div>
-          <div className="feat"><b>🔍 ค้นหาไว แยกหมวดชัด</b><p>หนังสือ / เอกสาร / ข้อสอบ หาของเจอไวกว่าหาถุงยาเย็นตอนเช้า</p></div>
         </div>
       </section>
 

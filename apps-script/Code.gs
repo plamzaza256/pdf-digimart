@@ -34,6 +34,7 @@ const SHEET_CONFIG = 'Config';
 const SHEET_USERS = 'user_id';
 const SHEET_LIBRARY = 'Library';
 const SHEET_FILES = 'Files';
+const SHEET_FAVORITES = 'Favorites';
 
 const CATEGORY_LIST = ['หนังสือ', 'เอกสาร', 'ข้อสอบ'];
 
@@ -103,6 +104,11 @@ function setupSheets() {
   ]);
   _ensureSheet(SHEET_FILES, [
     'product_id', 'file_code', 'file_name', 'drive_url', 'file_size', 'updated_at'
+  ]);
+  // ⭐ แท็บสินค้าที่ถูกใจ — ผูกกับอีเมลผู้ใช้
+  //    ล็อกอินใหม่/เปลี่ยนเครื่อง → ดาวยังอยู่
+  _ensureSheet(SHEET_FAVORITES, [
+    'fav_id', 'email', 'User_id', 'product_id', 'created_at'
   ]);
   _seedConfig();
   _seedProducts();
@@ -249,6 +255,12 @@ function doPost(e) {
     // --- ฝั่งลูกค้า (ต้องล็อกอินด้วยอีเมล + token) ---
     if (action === 'library.list') return _json(_myLibrary(body));
     if (action === 'order.mine') return _json(_myOrders(body));
+
+    // --- ⭐ สินค้าที่ถูกใจ (ผูกกับอีเมลผู้ใช้) ---
+    if (action === 'favorite.list') return _json(_myFavorites(body));
+    if (action === 'favorite.add') return _json(_toggleFavorite(body, true));
+    if (action === 'favorite.remove') return _json(_toggleFavorite(body, false));
+    if (action === 'favorite.sync') return _json(_syncFavorites(body));
 
     // --- ส่วนแอดมิน (ต้องเป็น session ของเจ้าของร้านที่ยืนยันแล้ว) ---
     const admin = _requireAdmin(body);
@@ -940,6 +952,157 @@ function _productDetail(id) {
   const found = all.products.filter(function (p) { return p.id === id; })[0];
   if (!found) return { ok: false, error: 'ไม่พบสินค้า' };
   return { ok: true, product: found };
+}
+
+/**
+ * ⭐ สินค้าที่ผู้ใช้กดถูกใจ (ผูกกับอีเมล)
+ *
+ * 🔒 ต้องยืนยันตัวตนด้วย email + token เสมอ
+ *    (ห้ามดูดาวคนอื่นได้ แม้จะรู้อีเมล)
+ *
+ * เก็บไว้ในชีต → ล็อกอินใหม่ / เปลี่ยนเครื่อง / ล้างเบราว์เซอร์ ดาวยังอยู่
+ */
+function _myFavorites(body) {
+  const sess = _session(body);
+  if (!sess.ok) return sess;
+
+  // ℹ️ ถ้ายังไม่มีแท็บ → _readSheet คืน [] อัตโนมัติ ไม่ error
+  //    (แท็บจะถูกสร้างตอนกดดาวครั้งแรก ซึ่งอยู่ใน lock)
+
+  const email = sess.user.email.toLowerCase();
+  const rows = _readSheet(SHEET_FAVORITES).filter(function (r) {
+    return String(r.email || '').toLowerCase() === email;
+  });
+
+  const items = rows.map(function (r) {
+    return {
+      favId: r.fav_id,
+      productId: r.product_id,
+      createdAt: _fmtDate(r.created_at)
+    };
+  });
+
+  return {
+    ok: true,
+    items: items,
+    productIds: items.map(function (x) { return x.productId; })
+  };
+}
+
+/**
+ * ⭐ เพิ่ม/ลบดาวถูกใจ
+ * @param {boolean} on true = กดถูกใจ, false = เอาออก
+ */
+function _toggleFavorite(body, on) {
+  const sess = _session(body);
+  if (!sess.ok) return sess;
+
+  const email = sess.user.email.toLowerCase();
+  const productId = String(body.product_id || '').trim();
+  if (!productId) return { ok: false, error: 'ไม่ระบุสินค้า' };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    _ensureSheet(SHEET_FAVORITES, [
+      'fav_id', 'email', 'User_id', 'product_id', 'created_at'
+    ]);
+    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_FAVORITES);
+    const headers = _header(SHEET_FAVORITES);
+    const data = sh.getDataRange().getValues();
+    const cEmail = headers.indexOf('email');
+    const cProduct = headers.indexOf('product_id');
+    const cId = headers.indexOf('fav_id');
+    const cUser = headers.indexOf('User_id');
+    const cAt = headers.indexOf('created_at');
+
+    let found = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][cEmail] || '').toLowerCase() === email &&
+          String(data[i][cProduct]) === productId) {
+        found = i + 1;
+        break;
+      }
+    }
+
+    if (on) {
+      if (found === -1) {
+        const row = [];
+        for (let i = 0; i < headers.length; i++) row.push('');
+        row[cId] = Utilities.getUuid();
+        row[cEmail] = email;
+        row[cUser] = sess.user.user_id || '';
+        row[cProduct] = productId;
+        row[cAt] = new Date();
+        sh.appendRow(row);
+      }
+      return { ok: true, on: true, productId: productId, message: 'เพิ่มดาวถูกใจแล้ว' };
+    }
+
+    if (found !== -1) {
+      sh.deleteRow(found);
+    }
+    return { ok: true, on: false, productId: productId, message: 'เอาดาวออกแล้ว' };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * ⭐ รวมดาวถูกใจจากเบราว์เซอร์เข้าบัญชี (ตอนล็อกอินครั้งแรก)
+ * ใช้กรณีคนกดดาวตอนยังไม่ได้ล็อกอิน แล้วค่อยมาล็อกอินทีหลัง
+ */
+function _syncFavorites(body) {
+  const sess = _session(body);
+  if (!sess.ok) return sess;
+
+  const email = sess.user.email.toLowerCase();
+  const list = Array.isArray(body.product_ids) ? body.product_ids : [];
+  if (list.length === 0) return { ok: true, merged: 0, productIds: [] };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    _ensureSheet(SHEET_FAVORITES, [
+      'fav_id', 'email', 'User_id', 'product_id', 'created_at'
+    ]);
+    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_FAVORITES);
+    const headers = _header(SHEET_FAVORITES);
+    const data = sh.getDataRange().getValues();
+    const cEmail = headers.indexOf('email');
+    const cProduct = headers.indexOf('product_id');
+
+    const existing = {};
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][cEmail] || '').toLowerCase() === email) {
+        existing[String(data[i][cProduct])] = true;
+      }
+    }
+
+    let merged = 0;
+    for (const pid of list) {
+      const productId = String(pid || '').trim();
+      if (!productId || existing[productId]) continue;
+      const row = [];
+      for (let i = 0; i < headers.length; i++) row.push('');
+      row[headers.indexOf('fav_id')] = Utilities.getUuid();
+      row[cEmail] = email;
+      row[headers.indexOf('User_id')] = sess.user.user_id || '';
+      row[cProduct] = productId;
+      row[headers.indexOf('created_at')] = new Date();
+      sh.appendRow(row);
+      existing[productId] = true;
+      merged++;
+    }
+
+    return {
+      ok: true,
+      merged: merged,
+      productIds: Object.keys(existing)
+    };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /**

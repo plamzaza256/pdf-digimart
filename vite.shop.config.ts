@@ -12,7 +12,7 @@ export default defineConfig({
   root: r('./apps/shop'),
   // ให้ Vite อ่านไฟล์ .env.local จากรากโปรเจกต์ (ไม่ใช่จากโฟลเดอร์ของแต่ละเว็บ)
   envDir: r('.'),
-  publicDir: r('./apps/shop/public'),
+  publicDir: r('./public'),
   plugins: [react()],
   resolve: {
     alias: { '@shared': r('./apps/shared') },

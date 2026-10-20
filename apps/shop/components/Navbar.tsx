@@ -11,20 +11,21 @@ export default function Navbar() {
     <header className="nav-wrap">
       <nav className="nav">
         <Link to="/" className="brand">
-          <img src="logo.png" alt="โลโก้ร้านให้แม่มึงทำ" className="brand-logo" />
+          <img src="Line02.png" alt="โลโก้ร้านให้แม่มึงทำ" className="brand-logo" />
           <span className="brand-text">
-            ให้แม่มึงทำ
-            <small>ร้านไฟล์ PDF อังกฤษ</small>
+            Mock Test By
+            <small>ให้แม่มึงทำ</small>
           </span>
         </Link>
         <div className="nav-links">
           <NavLink to="/" end>หน้าแรก</NavLink>
-          <NavLink to="/shop">หน้าร้าน</NavLink>
+          <NavLink to="/shop">ค้นหา</NavLink>
         </div>
         <div className="nav-actions">
-          <span className="fav-chip" title="สินค้าที่คุณกดถูกใจ">
+          {/* ⭐ ดาวถูกใจ — กดได้ พาไปหน้าสินค้าที่ถูกใจ */}
+          <Link to="/favorites" className="fav-chip" title="สินค้าที่คุณกดถูกใจ">
             <span className="star-icon">⭐</span> ถูกใจ ({favoriteCount})
-          </span>
+          </Link>
           {user ? (
             <>
               <span className="user-chip" title={user.email}>

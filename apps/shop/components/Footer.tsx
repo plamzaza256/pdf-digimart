@@ -3,7 +3,8 @@ import { useStoreConfig } from '@shared/store/config';
 
 export default function Footer() {
   const { config } = useStoreConfig();
-  const storeName = config?.store_name || 'PDF ให้แม่มึงทำ';
+  const storeName = config?.store_name || 'ให้แม่มึงทำ';
+  const lineLink = config?.line_oa_link || '';
 
   return (
     <footer className="footer">
@@ -23,7 +24,7 @@ export default function Footer() {
           <strong>เมนู</strong>
           <ul className="footer-links">
             <li><Link to="/">หน้าแรก</Link></li>
-            <li><Link to="/shop">หน้าร้าน</Link></li>
+            <li><Link to="/shop">Search</Link></li>
             <li><Link to="/favorites">สินค้าที่ถูกใจ</Link></li>
             <li><Link to="/login">เข้าสู่ระบบ</Link></li>
           </ul>
@@ -31,14 +32,19 @@ export default function Footer() {
         <div>
           <strong>ติดต่อเรา</strong>
           <ul className="footer-links">
-            {config?.contact_line && <li>LINE: {config.contact_line}</li>}
+            {lineLink && (
+              <li>
+                <a href={lineLink} target="_blank" rel="noreferrer" className="footer-line-link">
+                  LINE OA
+                </a>
+              </li>
+            )}
             {config?.contact_email && <li>อีเมล: {config.contact_email}</li>}
-            <li>สั่งซื้อผ่าน LINE OA ของร้าน</li>
           </ul>
         </div>
       </div>
       <div className="footer-bottom">
-        © 2026 {storeName} — สร้างด้วย React + Vite • งบ 0 บาท • อ่านเพลิน สอบผ่าน แม่ภูมิใจ
+        © 2026 ให้แม่มึงทำ.co
       </div>
     </footer>
   );

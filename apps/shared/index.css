@@ -32,7 +32,7 @@ a { color: inherit; }
 .nav { max-width: 1120px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .brand-mark { background: var(--brand); color: #fff; font-weight: 800; padding: 8px 10px; border-radius: 10px; }
-.brand-logo { width: 60px; height: 60px; border-radius: 14px; object-fit: cover; }
+.brand-logo { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; background: #fff; }
 .brand-text { font-weight: 800; font-size: 1.7rem; display: flex; flex-direction: column; line-height: 1.1; }
 .brand-text small { font-weight: 500; color: var(--muted); font-size: 0.85rem; }
 .nav-links { display: flex; gap: 4px; margin-inline-start: 8px; }
@@ -40,7 +40,8 @@ a { color: inherit; }
 .nav-links a.active, .nav-links a:hover { background: #dbeafe; color: var(--brand-dark); }
 .nav-actions { margin-inline-start: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .user-chip { background: #f1f5f9; border: 1px solid var(--line); padding: 6px 10px; border-radius: 999px; font-size: 0.82rem; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fav-chip { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; padding: 6px 10px; border-radius: 999px; font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+.fav-chip { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; padding: 6px 10px; border-radius: 999px; font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.fav-chip:hover { background: #fef3c7; border-color: #f59e0b; }
 
 /* ปุ่ม / ฟอร์ม */
 .btn { border: 1px solid transparent; border-radius: 10px; padding: 9px 14px; font-weight: 700; cursor: pointer; font-size: 0.92rem; }
@@ -54,6 +55,7 @@ a { color: inherit; }
 
 /* 🟢 ปุ่มสั่งซื้อ (สีเขียว LINE) — ปุ่มหลักของแบบ billboard */
 .btn-line { background: #06c755; color: #fff; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.line-logo { border-radius: 50%; display: block; flex: none; }
 .btn-line:hover { background: #05b048; }
 
 /* ⭐ ปุ่มดาวถูกใจ */
@@ -80,13 +82,10 @@ a { color: inherit; }
 .warn-box { background: var(--warn-bg); border: 1px solid var(--warn-line); }
 
 /* hero */
-.hero { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 24px; align-items: center; padding: 36px 16px 8px; }
+.hero { padding: 36px 16px 8px; max-width: 760px; }
 .hero h1 { font-size: clamp(1.7rem, 4vw, 2.7rem); line-height: 1.25; margin: 12px 0; }
 .hero-cta { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
 .hero-points { padding: 0; list-style: none; display: grid; gap: 6px; color: #334155; }
-.hero-art { position: relative; min-height: 280px; }
-.hero-doc { position: absolute; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 14px; width: 190px; font-weight: 700; }
-.hero-doc span { display: inline-block; background: #dc2626; color: #fff; font-size: 0.72rem; padding: 2px 8px; border-radius: 6px; margin-right: 6px; }
 .d1 { top: 10px; left: 10px; transform: rotate(-6deg); }
 .d2 { top: 90px; left: 130px; transform: rotate(3deg); background: #eff6ff; }
 .d3 { top: 175px; left: 30px; transform: rotate(-2deg); background: #f0fdfa; }
@@ -97,7 +96,6 @@ a { color: inherit; }
 .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.feat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--shadow); }
 .cover { min-height: 150px; color: #fff; padding: 14px; display: flex; flex-direction: column; gap: 8px; text-decoration: none; }
 .cover-pdf { background: rgba(255,255,255,.25); align-self: flex-start; font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; }
@@ -159,15 +157,15 @@ a { color: inherit; }
 .footer strong { color: #fff; }
 .footer-links { list-style: none; padding: 0; display: grid; gap: 6px; }
 .footer-links a { color: #cbd5e1; text-decoration: none; }
+/* ⚠️ ต้องมี specificity สูงกว่า .footer-links a (ซึ่งมี text-decoration:none) */
+.footer-links a.footer-line-link { color: #06c755; text-decoration: underline; font-weight: 700; }
 .footer-bottom { border-top: 1px solid #1e293b; text-align: center; padding: 12px; font-size: 0.82rem; }
 
 /* responsive */
 @media (max-width: 960px) {
   .grid4 { grid-template-columns: repeat(2, 1fr); }
   .grid3 { grid-template-columns: 1fr; }
-  .hero { grid-template-columns: 1fr; }
-  .hero-art { min-height: 230px; }
-  .detail-grid { grid-template-columns: 1fr; }
+    .detail-grid { grid-template-columns: 1fr; }
   .toolbar { grid-template-columns: 1fr; }
   .footer-grid { grid-template-columns: 1fr; }
   .nav { gap: 8px 10px; }

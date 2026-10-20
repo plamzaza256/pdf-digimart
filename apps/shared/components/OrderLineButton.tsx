@@ -1,4 +1,3 @@
-import LineLogo from './LineLogo';
 import { useStoreConfig } from '../store/config';
 
 interface Props {
@@ -62,7 +61,13 @@ export default function OrderLineButton({
       disabled={loading}
       title={loading ? 'กำลังโหลดข้อมูลร้าน…' : undefined}
     >
-      <LineLogo size={size === 'lg' ? 22 : 18} />
+      <img
+        src="Line01.png"
+        alt=""
+        className="line-logo"
+        width={size === 'lg' ? 22 : 18}
+        height={size === 'lg' ? 22 : 18}
+      />
       {loading ? 'กำลังโหลด…' : label}
     </button>
   );

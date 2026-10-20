@@ -192,3 +192,29 @@ export async function apiGetConfig() {
   const res = await fetch(`${API_URL}?action=config`);
   return (await res.json()) as Record<string, string>;
 }
+
+// ============================ ⭐ สินค้าที่ถูกใจ ============================
+
+/** ดึงดาวถูกใจของผู้ใช้ที่ล็อกอินอยู่ (ผูกกับอีเมล) */
+export function apiFavoritesList(email: string, token: string) {
+  return call('favorite.list', { email, token });
+}
+
+/** กดถูกใจ */
+export function apiFavoriteAdd(email: string, token: string, productId: string) {
+  return call('favorite.add', { email, token, product_id: productId });
+}
+
+/** เอาดาวออก */
+export function apiFavoriteRemove(email: string, token: string, productId: string) {
+  return call('favorite.remove', { email, token, product_id: productId });
+}
+
+/** รวมดาวที่ค้างในเบราว์เซอร์เข้าบัญชี (ตอนล็อกอินครั้งแรก) */
+export function apiFavoritesSync(
+  email: string,
+  token: string,
+  productIds: string[],
+) {
+  return call('favorite.sync', { email, token, product_ids: productIds });
+}
