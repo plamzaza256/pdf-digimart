@@ -4,14 +4,11 @@ import { useShop } from '../store/shop';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
-  const { cartCount } = useShop();
+  const { favoriteCount } = useShop();
   const nav = useNavigate();
 
   return (
     <header className="nav-wrap">
-      <div className="demo-strip">
-        ร้านจำลองเพื่อทดลองระบบ (Demo) — ยังไม่มีชำระเงินจริง / ยังไม่เปิดดาวน์โหลดไฟล์ฉบับเต็ม
-      </div>
       <nav className="nav">
         <Link to="/" className="brand">
           <img src="logo.png" alt="โลโก้ร้านให้แม่มึงทำ" className="brand-logo" />
@@ -23,17 +20,11 @@ export default function Navbar() {
         <div className="nav-links">
           <NavLink to="/" end>หน้าแรก</NavLink>
           <NavLink to="/shop">หน้าร้าน</NavLink>
-          <NavLink to="/orders">คำสั่งซื้อของฉัน</NavLink>
-          <NavLink to="/library">คลังไฟล์ของฉัน</NavLink>
         </div>
         <div className="nav-actions">
-          <button
-            className="btn btn-ghost"
-            onClick={() => nav('/cart')}
-            aria-label="ตะกร้า"
-          >
-            🛒 <span className="cart-label">ตะกร้า </span>({cartCount})
-          </button>
+          <span className="fav-chip" title="สินค้าที่คุณกดถูกใจ">
+            <span className="star-icon">⭐</span> ถูกใจ ({favoriteCount})
+          </span>
           {user ? (
             <>
               <span className="user-chip" title={user.email}>
@@ -50,11 +41,9 @@ export default function Navbar() {
               </button>
             </>
           ) : (
-            <>
-              <button className="btn btn-outline" onClick={() => nav('/login')}>
-                เข้าสู่ระบบ
-              </button>
-            </>
+            <button className="btn btn-outline" onClick={() => nav('/login')}>
+              เข้าสู่ระบบ
+            </button>
           )}
         </div>
       </nav>

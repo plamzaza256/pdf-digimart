@@ -11,7 +11,7 @@ export default function Login() {
     setErr(null);
     const msg = await loginWithGoogle();
     if (msg) setErr(msg);
-    else nav('/orders');
+    else nav('/');
   };
 
   return (

@@ -34,7 +34,6 @@ const SHEET_CONFIG = 'Config';
 const SHEET_USERS = 'user_id';
 const SHEET_LIBRARY = 'Library';
 const SHEET_FILES = 'Files';
-const SHEET_MESSAGES = 'Messages';
 
 const CATEGORY_LIST = ['หนังสือ', 'เอกสาร', 'ข้อสอบ'];
 
@@ -54,35 +53,13 @@ const FIREBASE_APP_ID = '1:932991647595:web:3895a9242a57894da0562e';
 const DOC_LANG_LIST = ['th', 'en', 'other'];
 const DOC_TYPE_LIST = ['exam', 'worksheet', 'book', 'study_guide', 'other'];
 
-/**
- * สถานะคำสั่งซื้อ — ใช้ตัวอักษรตัวเดียวตามที่เจ้าของร้านกำหนด
- * และตั้งสีในชีตด้วย Conditional formatting:
- *   P = น้ำเงิน (รอตรวจ) / S = เขียว (สำเร็จ) / F = แดง (ไม่สำเร็จ)
- */
+/** สถานะคำสั่งซื้อที่ใช้ได้ */
 const ORDER_STATUS = {
-  PENDING: 'P',
-  SUCCESS: 'S',
-  FAILED: 'F'
+  NEW: 'pending_payment',   // รอโอนเงิน
+  PAID: 'paid',             // ผู้ดูแลยืนยันแล้ว
+  REJECTED: 'rejected',     // ตรวจไม่ผ่าน
+  CANCELLED: 'cancelled'   // ยกเลิก
 };
-
-/** แปลงค่าสถานะทุกรูปแบบให้เป็นมาตรฐานเดียวกัน (กันข้อมูลเก่า/พิมพ์ต่าง) */
-function _normStatus(v) {
-  const s = String(v || '').trim().toUpperCase();
-  if (s === 'S' || s === 'SUCCESS' || s === 'PAID') return ORDER_STATUS.SUCCESS;
-  if (s === 'F' || s === 'FAILED' || s === 'REJECTED') return ORDER_STATUS.FAILED;
-  if (s === 'P' || s === 'PENDING' || s === 'PENDING_PAYMENT') return ORDER_STATUS.PENDING;
-  return s;
-}
-
-/** แปลงค่า TRUE/FALSE ทุกรูปแบบ (ชีตอาจเก็บเป็น TRUE, true, True, Yes) */
-function _normBool(v) {
-  if (v === true) return true;
-  const s = String(v || '').trim().toUpperCase();
-  return s === 'TRUE' || s === 'YES' || s === 'Y' || s === '1';
-}
-
-/** โฟลเดอร์ Google Drive ที่เก็บรูปสลิป */
-const DRIVE_RECEIPTS_FOLDER_ID = '1ziHwTL6PhCCyRUz8P1-UgX4c4dwvYg5j';
 
 // ===================== สร้างชีตครั้งแรก (รัน 1 ครั้ง) =====================
 
@@ -98,15 +75,10 @@ function setupSheets() {
     'rating', 'sales', 'cover_color', 'featured', 'status', 'created_at'
   ]);
 
-  // 📋 โครงคอลัมน์ของแท็บ Orders — เจ้าของร้านเป็นผู้กำหนด
-  //    ลำดับ: order_id, User_id, customer_email, customer_name,
-  //            total_satang, status, admin_note, library_granted,
-  //            created_at, verified_at
-  //    ⚠️ ห้ามลบคอลัมน์ใดออก ถ้าลบ ระบบจะอ่านข้อมูลไม่ครบ
   _ensureSheet(SHEET_ORDERS, [
-    'order_id', 'User_id', 'customer_email', 'customer_name',
-    'total_satang', 'status', 'admin_note', 'library_granted',
-    'created_at', 'verified_at'
+    'order_id', 'created_at', 'customer_name', 'customer_email',
+    'identity_provider', 'token_hash', 'status', 'total_satang',
+    'payment_ref', 'verified_by', 'verified_at', 'admin_note'
   ]);
 
   _ensureSheet(SHEET_ORDER_ITEMS, [
@@ -118,19 +90,13 @@ function setupSheets() {
     'payer_name', 'payer_note', 'review_result', 'reviewed_by', 'reviewed_at'
   ]);
 
-  // 💬 แชทลูกค้า ↔ แอดมิน (แบบ inbox ของ Line OA)
-  _ensureSheet(SHEET_MESSAGES, [
-    'message_id', 'order_id', 'User_id', 'customer_email',
-    'sender', 'message', 'image_url', 'sent_at', 'read_at'
-  ]);
-
   _ensureSheet(SHEET_CONFIG, ['key', 'value']);
   _ensureSheet(SHEET_USERS, [
     'User_id', 'email', 'password', 'name', 'Creation date', 'last_login'
   ]);
   // เพิ่มคอลัมน์ที่ภายหลังต้องใช้ ให้แท็บเก่าที่สร้างไว้แล้วอัปเดตอัตโนมัติ
   _ensureColumns(SHEET_USERS, ['token', 'login_method']);
-  _ensureColumns(SHEET_ORDERS, ['User_id', 'customer_email', 'library_granted', 'created_at', 'verified_at']);
+  _ensureColumns(SHEET_ORDERS, ['User_id', 'order_token', 'library_granted']);
   _ensureSheet(SHEET_LIBRARY, [
     'grant_id', 'User_id', 'email', 'product_id', 'file_code',
     'order_id', 'granted_at', 'granted_by', 'active'
@@ -140,63 +106,8 @@ function setupSheets() {
   ]);
   _seedConfig();
   _seedProducts();
-  _applyOrderDropdowns();
 
   return 'ตั้งค่าเรียบร้อย! เปิดชีต Products ดูว่ามีสินค้าแล้ว';
-}
-
-/**
- * ตั้ง dropdown + สีของแท็บ Orders ให้อัตโนมัติ
- *
- *   status         : P / S / F
- *                    P = น้ำเงิน, S = เขียว, F = แดง
- *   library_granted: TRUE / FALSE
- *                    TRUE = เขียว, FALSE = แดง
- *
- * รันซ้ำได้ ไม่ทำให้ข้อมูลเสียหาย
- */
-function _applyOrderDropdowns() {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ORDERS);
-  if (!sh) return;
-  const headers = _header(SHEET_ORDERS).map(function (h) { return String(h || '').trim(); });
-  const MAX = 1000; // ตั้ง dropdown ไว้ล่วงหน้า 1000 แถว
-
-  const spec = [
-    { name: 'status', values: ['P', 'S', 'F'],
-      colors: { P: '#204299', S: '#45a619', F: '#db5004' } },
-    { name: 'library_granted', values: ['TRUE', 'FALSE'],
-      colors: { TRUE: '#45a619', FALSE: '#db5004' } }
-  ];
-
-  spec.forEach(function (s) {
-    const c = headers.indexOf(s.name);
-    if (c === -1) return;
-    const range = sh.getRange(2, c + 1, MAX, 1);
-
-    // dropdown
-    const rule = SpreadsheetApp.newDataValidation()
-      .requireValueInList(s.values, true)
-      .setAllowInvalid(false)
-      .build();
-    range.setDataValidation(rule);
-
-    // ลบกฎสีเดิมของคอลัมน์นี้ก่อน กันซ้อนกันหลายรอบ
-    const existing = sh.getConditionalFormatRules().filter(function (r) {
-      const ranges = r.getRanges();
-      return !ranges.some(function (rg) {
-        return rg.getColumn() === c + 1 && rg.getSheet().getSheetId() === sh.getSheetId();
-      });
-    });
-    const added = Object.keys(s.colors).map(function (val) {
-      return SpreadsheetApp.newConditionalFormatRule()
-        .whenTextEqualTo(val)
-        .setBackground(s.colors[val])
-        .setFontColor('#ffffff')
-        .setRanges([range])
-        .build();
-    });
-    sh.setConditionalFormatRules(existing.concat(added));
-  });
 }
 
 function _ensureSheet(name, headers) {
@@ -261,6 +172,10 @@ function _seedConfig() {
   cfg.getRange(7, 1, 1, 2).setValues([[
     'banking_open', 'no'
   ]]);
+  // 🔗 ลิงก์ LINE OA ของร้าน (แก้ได้ที่แท็บ Config ได้เลย)
+  cfg.getRange(8, 1, 1, 2).setValues([[
+    'line_oa_link', ''
+  ]]);
 }
 
 /** ใส่สินค้าตัวอย่าง 8 รายการ (จาก mock เดิม) — ราคาเก็บเป็น "สตางค์" */
@@ -312,7 +227,7 @@ function doPost(e) {
     const action = body.action || '';
 
     if (action === 'order.create') {
-      // สั่งซื้อได้ตลอด — ถ้ายังไม่ตั้งค่าบัญชีรับเงิน หน้าจ่ายเงินจะแจ้งเตือนเอง
+      if (!_isOpen()) return _json({ ok: false, error: 'ร้านยังไม่เปิดรับคำสั่งซื้อ' });
       return _json(_createOrder(body));
     }
 
@@ -327,27 +242,28 @@ function doPost(e) {
     // --- ฝั่งลูกค้า (ต้องล็อกอินด้วยอีเมล + token) ---
     if (action === 'library.list') return _json(_myLibrary(body));
     if (action === 'order.mine') return _json(_myOrders(body));
-    // 💬 แชทของลูกค้า
-    if (action === 'message.send') return _json(_customerSendMessage(body));
-    if (action === 'message.list') return _json(_customerMessages(body));
 
     // --- ส่วนแอดมิน (ต้องเป็น session ของเจ้าของร้านที่ยืนยันแล้ว) ---
     const admin = _requireAdmin(body);
     if (!admin.ok) return _json(admin);
 
-    // 💬 inbox ของแอดมิน
-    if (action === 'admin.inbox') return _json(_adminInbox());
-    if (action === 'admin.thread') return _json(_adminThread(String(body.order_id || '')));
-    if (action === 'admin.reply') return _json(_adminReply(body, admin.email));
-
     if (action === 'product.upsert') {
       return _json(_upsertProduct(body.product || {}, admin.email));
     }
+    if (action === 'product.delete') {
+      return _json(_deleteProduct(body.id));
+    }
+    if (action === 'product.list.all') {
+      return _json(_listProductsAll());
+    }
+    if (action === 'config.set') {
+      return _json(_setConfig(body.key, body.value));
+    }
     if (action === 'order.verify') {
-      return _json(_verifyOrder(body.order_id, true, admin.email, body.admin_note));
+      return _json(_verifyOrder(body.order_id, true, admin.email));
     }
     if (action === 'order.reject') {
-      return _json(_verifyOrder(body.order_id, false, admin.email, body.admin_note));
+      return _json(_verifyOrder(body.order_id, false, admin.email));
     }
     if (action === 'library.revoke') {
       return _json(_revokeGrant(body.grant_id));
@@ -941,6 +857,8 @@ function getPublicConfig() {
     promptpay_name: String(_getConfig('promptpay_name') || ''),
     contact_line: String(_getConfig('contact_line') || ''),
     contact_email: String(_getConfig('contact_email') || ''),
+    // 🔗 ลิงก์ LINE OA ของร้าน — ปุ่มสีเขียวบนหน้าเว็บจะพาไปที่นี่
+    line_oa_link: String(_getConfig('line_oa_link') || ''),
     banking_open: String(_getConfig('banking_open')) === 'yes',
     firebase: {
       apiKey: FIREBASE_API_KEY,
@@ -1000,7 +918,10 @@ function _listProducts() {
       rating: Number(r.rating || 0),
       sales: Number(r.sales || 0),
       coverColor: r.cover_color || '#1d4ed8',
-      featured: String(r.featured) === 'TRUE' || r.featured === true,
+      // 🐛 ชีตเก็บ boolean จริง (true) ไม่ใช่ข้อความ "TRUE"
+      //    เดิมเช็คแบบเดียว → สินค้าแนะนำไม่เคยขึ้นหน้าแรกเลย
+      featured: r.featured === true || String(r.featured).toUpperCase() === 'TRUE',
+      status: String(r.status || 'published'),
       createdAt: _fmtDate(r.created_at)
     });
   }
@@ -1014,6 +935,79 @@ function _productDetail(id) {
   return { ok: true, product: found };
 }
 
+/**
+ * รายการสินค้าทั้งหมดรวมที่ยังไม่เผยแพร่ (เฉพาะแอดมิน)
+ * ใช้ในหน้าแอดมิน เพื่อให้เห็นสินค้าที่ตั้งเป็น draft ด้วย
+ */
+function _listProductsAll() {
+  const rows = _readSheet(SHEET_PRODUCTS);
+  const out = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    out.push({
+      id: r.product_id,
+      title: r.title,
+      description: r.description,
+      longDescription: r.long_description,
+      category: r.category,
+      documentLanguage: r.document_language,
+      descriptionLanguage: r.description_language,
+      documentType: r.document_type,
+      tags: String(r.tags || '').split(',').map(function (s) { return s.trim(); })
+        .filter(Boolean),
+      price: Math.round(Number(r.price_satang || 0) / 100),
+      oldPrice: r.old_price_satang === '' || r.old_price_satang == null
+        ? undefined
+        : Math.round(Number(r.old_price_satang) / 100),
+      pages: Number(r.pages || 0),
+      fileSize: r.file_size,
+      rating: Number(r.rating || 0),
+      sales: Number(r.sales || 0),
+      coverColor: r.cover_color || '#1d4ed8',
+      featured: r.featured === true || String(r.featured).toUpperCase() === 'TRUE',
+      status: String(r.status || 'published'),
+      createdAt: _fmtDate(r.created_at)
+    });
+  }
+  return { ok: true, products: out };
+}
+
+/**
+ * แก้ค่าตั้งร้านในแท็บ Config (เฉพาะแอดมิน)
+ * ใช้ตั้งลิงก์ LINE OA / ชื่อร้าน โดยไม่ต้องแก้โค้ด
+ */
+function _setConfig(key, value) {
+  const k = String(key || '').trim();
+  if (!k) return { ok: false, error: 'ไม่ระบุคีย์' };
+
+  // 🛡 อนุญาตเฉพาะคีย์ที่กำหนดไว้ กันเขียนทับค่าอื่นมั่ว
+  const ALLOWED = [
+    'store_name', 'contact_line', 'contact_email', 'line_oa_link',
+    'promptpay_phone', 'promptpay_name', 'banking_open'
+  ];
+  if (ALLOWED.indexOf(k) === -1) {
+    return { ok: false, error: 'ไม่อนุญาตให้แก้คีย์นี้' };
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const cfg = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CONFIG);
+    const data = cfg.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]) === k) {
+        cfg.getRange(i + 1, 2).setValue(String(value || ''));
+        return { ok: true, message: 'บันทึกค่าแล้ว', key: k };
+      }
+    }
+    // ยังไม่มีคีย์นี้ → เพิ่มใหม่
+    cfg.appendRow([k, String(value || '')]);
+    return { ok: true, message: 'เพิ่มค่าใหม่แล้ว', key: k };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function _listOrders() {
   const orders = _readSheet(SHEET_ORDERS);
   const items = _readSheet(SHEET_ORDER_ITEMS);
@@ -1021,18 +1015,17 @@ function _listOrders() {
 
   for (let i = 0; i < orders.length; i++) {
     const o = orders[i];
-    const lines = items.filter(function (x) { return String(x.order_id) === String(o.order_id); });
+    const lines = items.filter(function (x) { return x.order_id === o.order_id; });
     out.push({
-      orderId: String(o.order_id),
-      createdAt: _fmtDateTime(o.created_at),
-      customerName: String(o.customer_name || ''),
-      customerEmail: String(o.customer_email || ''),
-      userId: String(o.User_id || ''),
-      status: _normStatus(o.status),
-      adminNote: String(o.admin_note || ''),
-      verifiedAt: _fmtDateTime(o.verified_at),
+      orderId: o.order_id,
+      createdAt: o.created_at,
+      customerName: o.customer_name,
+      customerEmail: o.customer_email,
+      userId: o.User_id,
+      status: o.status,
       total: Math.round(Number(o.total_satang || 0) / 100),
-      libraryGranted: _normBool(o.library_granted),
+      paymentRef: o.payment_ref,
+      libraryGranted: String(o.library_granted) === 'TRUE',
       items: lines.map(function (l) {
         return {
           productId: l.product_id,
@@ -1043,7 +1036,6 @@ function _listOrders() {
       })
     });
   }
-  out.sort(function (a, b) { return a.createdAt < b.createdAt ? 1 : -1; });
   return { ok: true, orders: out };
 }
 
@@ -1117,17 +1109,17 @@ function _grantLibrary(orderId, adminEmail) {
       return String(x.product_id) === String(l.product_id);
     })[0];
 
-    _appendByHeader(SHEET_LIBRARY, {
-      grant_id: Utilities.getUuid(),
-      User_id: String(order.User_id || ''),
-      email: String(order.customer_email || '').toLowerCase(),
-      product_id: l.product_id,
-      file_code: f ? String(f.file_code || '') : '',
-      order_id: orderId,
-      granted_at: today,
-      granted_by: adminEmail || '',
-      active: 'TRUE'
-    });
+    _appendRow(SHEET_LIBRARY, [
+      Utilities.getUuid(),
+      order.User_id,
+      order.customer_email,
+      l.product_id,
+      f ? String(f.file_code || '') : '',
+      orderId,
+      today,
+      adminEmail || '',
+      'TRUE'
+    ]);
     added++;
   }
 
@@ -1169,7 +1161,7 @@ function _revokeGrant(grantId) {
 /** เขียนค่าลงคอลัมน์ของแถวออเดอร์ โดยเลือกคอลัมน์จากชื่อ */
 function _markOrder(orderId, columnName, value) {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ORDERS);
-  const headers = _header(SHEET_ORDERS).map(function (h) { return String(h || '').trim(); });
+  const headers = _header(SHEET_ORDERS);
   const c = headers.indexOf(columnName);
   if (c === -1) return;
   const data = sh.getDataRange().getValues();
@@ -1199,12 +1191,11 @@ function _myOrders(body) {
         return String(x.order_id) === String(o.order_id);
       });
       return {
-        orderId: String(o.order_id),
-        createdAt: _fmtDateTime(o.created_at),
-        status: _normStatus(o.status),
-        adminNote: String(o.admin_note || ''),
+        orderId: o.order_id,
+        createdAt: _fmtDate(o.created_at),
+        status: String(o.status || ''),
         total: Math.round(Number(o.total_satang || 0) / 100),
-        libraryGranted: _normBool(o.library_granted),
+        libraryGranted: String(o.library_granted) === 'TRUE',
         items: lines.map(function (l) {
           return {
             productId: l.product_id,
@@ -1276,32 +1267,20 @@ function _createOrder(body) {
     }
 
     const orderId = _newId('ORD');
+    const orderToken = _newToken();
     const now = new Date();
 
-    // ✅ เขียนโดยอ้างชื่อคอลัมน์ — ลำดับคอลัมน์ในชีตจะเปลี่ยนก็ไม่กระทบ
-    _appendByHeader(SHEET_ORDERS, {
-      order_id: orderId,
-      User_id: sess.user.user_id,
-      customer_email: email,
-      customer_name: name,
-      total_satang: totalSatang,
-      status: ORDER_STATUS.PENDING,
-      admin_note: '',
-      library_granted: false,
-      created_at: now,
-      verified_at: ''
-    });
+    _appendRow(SHEET_ORDERS, [
+      orderId, now, name, email, 'password', _hash(orderToken),
+      ORDER_STATUS.NEW, totalSatang, '', '', '', '',
+      sess.user.user_id, '', ''       // User_id, order_token, library_granted
+    ]);
 
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];
-      _appendByHeader(SHEET_ORDER_ITEMS, {
-        item_id: Utilities.getUuid(),
-        order_id: orderId,
-        product_id: l.productId,
-        title_snapshot: l.title,
-        price_satang: l.priceSatang,
-        qty: l.qty
-      });
+      _appendRow(SHEET_ORDER_ITEMS, [
+        Utilities.getUuid(), orderId, l.productId, l.title, l.priceSatang, l.qty
+      ]);
     }
 
     return {
@@ -1316,240 +1295,68 @@ function _createOrder(body) {
 }
 
 /**
- * ลูกค้าแจ้งว่าโอนเงินแล้ว (ไม่ต้องกรอกเลขอ้างอิง)
- * สร้างข้อความในแชทเพื่อให้แอดมินเห็นใน inbox
+ * ลูกค้าแจ้งว่าโอนเงินแล้ว
+ * 🔒 ต้องล็อกอินด้วยอีเมลเดียวกับที่สั่งซื้อ ไม่งั้นคนอื่นแจ้งแทนได้
  */
 function _submitPayment(body) {
   const sess = _session(body);
   if (!sess.ok) return sess;
 
   const orderId = String(body.order_id || '');
+  const ref = String(body.payment_ref || '').trim();
   if (!orderId) return { ok: false, error: 'ไม่พบหมายเลขคำสั่งซื้อ' };
+  if (!ref) return { ok: false, error: 'กรุณากรอกเลขอ้างอิงการโอน' };
 
-  const order = _readSheet(SHEET_ORDERS).filter(function (o) {
-    return String(o.order_id) === orderId;
-  })[0];
-  if (!order) return { ok: false, error: 'ไม่พบคำสั่งซื้อ' };
-
-  // 🛡 ต้องเป็นออเดอร์ของคนที่ล็อกอินอยู่เท่านั้น
-  if (String(order.customer_email || '').toLowerCase() !== sess.user.email.toLowerCase()) {
-    return { ok: false, error: 'ไม่พบคำสั่งซื้อของคุณ' };
-  }
-  if (_normStatus(order.status) !== ORDER_STATUS.PENDING) {
-    return { ok: false, error: 'คำสั่งซื้อนี้ถูกดำเนินการแล้ว' };
-  }
-
-  // ไม่ต้องเก็บเลขอ้างอิง — แอดมินตรวจยอดจริงจากแอปธนาคารเอง
-  return _sendMessage({
-    email: sess.user.email,
-    token: body.token,
-    order_id: orderId,
-    message: String(body.payer_note || 'แจ้งชำระเงินแล้ว'),
-    image_base64: body.image_base64,
-    image_name: body.image_name,
-    image_type: body.image_type
-  });
-}
-
-// ============================ แชท / inbox ============================
-
-/** อัปโหลดรูปขึ้น Google Drive แล้วคืนลิงก์ (เปิดดูได้เฉพาะเจ้าของโฟลเดอร์) */
-function _uploadToDrive(base64, fileName, mimeType) {
-  if (!base64) return '';
-  const raw = String(base64).replace(/^data:[^;]+;base64,/, '');
-  // 🛡 จำกัดขนาด ~8MB กันคำขอใหญ่เกิน
-  if (raw.length > 11 * 1024 * 1024) {
-    throw new Error('รูปใหญ่เกินไป (สูงสุด 8 MB)');
-  }
-  const bytes = Utilities.base64Decode(raw);
-  const stamp = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyyMMdd-HHmmss');
-  const name = 'receipt-' + stamp + '-' +
-    String(fileName || 'slip.jpg').replace(/[^\w.\-]/g, '').slice(-30);
-  const blob = Utilities.newBlob(bytes, mimeType || 'image/jpeg', name);
-  const folder = DriveApp.getFolderById(DRIVE_RECEIPTS_FOLDER_ID);
-  const file = folder.createFile(blob);
-  return file.getId();
-}
-
-/**
- * ส่งข้อความเข้ากระทู้ของออเดอร์
- * ใช้ได้ทั้งลูกค้า (sender=customer) และแอดมิน (sender=admin)
- */
-function _sendMessage(opts) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    let imageId = '';
-    if (opts.image_base64) {
-      imageId = _uploadToDrive(opts.image_base64, opts.image_name, opts.image_type);
+    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ORDERS);
+    const data = sh.getDataRange().getValues();
+    const headers = _header(SHEET_ORDERS);
+    const cId = headers.indexOf('order_id');
+    const cRef = headers.indexOf('payment_ref');
+
+    let rowIdx = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][cId]) === orderId) { rowIdx = i + 1; break; }
+    }
+    if (rowIdx === -1) return { ok: false, error: 'ไม่พบคำสั่งซื้อ' };
+
+    // 🛡 ต้องเป็นออเดอร์ของคนที่ล็อกอินอยู่เท่านั้น
+    const cEmail = headers.indexOf('customer_email');
+    if (String(data[rowIdx - 1][cEmail] || '').toLowerCase() !==
+        sess.user.email.toLowerCase()) {
+      return { ok: false, error: 'ไม่พบคำสั่งซื้อของคุณ' };
     }
 
-    const msgId = Utilities.getUuid();
-    _appendByHeader(SHEET_MESSAGES, {
-      message_id: msgId,
-      order_id: String(opts.order_id || ''),
-      User_id: String(opts.User_id || ''),
-      customer_email: String(opts.customer_email || '').toLowerCase(),
-      sender: opts.sender,
-      message: String(opts.message || ''),
-      image_url: imageId,
-      sent_at: new Date(),
-      read_at: ''
-    });
-    return { ok: true, message_id: msgId };
+    // แจ้งแล้วต้องยังรอโอนอยู่ ป้องกันส่งซ้ำหลังจ่ายแล้ว
+    const cStatus = headers.indexOf('status');
+    if (String(data[rowIdx - 1][cStatus]) !== ORDER_STATUS.NEW) {
+      return { ok: false, error: 'คำสั่งซื้อนี้ถูกดำเนินการแล้ว' };
+    }
+
+    sh.getRange(rowIdx, cRef + 1).setValue(ref);
+
+    _appendRow(SHEET_PAYMENTS, [
+      Utilities.getUuid(), orderId, new Date(),
+      Math.round(Number(data[rowIdx - 1][headers.indexOf('total_satang')] || 0)),
+      String(body.payer_name || ''), String(body.payer_note || ''),
+      'pending', '', ''
+    ]);
+
+    return { ok: true, message: 'ส่งข้อมูลแล้ว รอผู้ดูแลตรวจสอบ' };
   } finally {
     lock.releaseLock();
   }
 }
 
-/** ลูกค้าส่งข้อความในออเดอร์ของตัวเอง */
-function _customerSendMessage(body) {
-  const sess = _session(body);
-  if (!sess.ok) return sess;
-
-  const orderId = String(body.order_id || '');
-  const order = _readSheet(SHEET_ORDERS).filter(function (o) {
-    return String(o.order_id) === orderId;
-  })[0];
-  if (!order) return { ok: false, error: 'ไม่พบคำสั่งซื้อ' };
-  if (String(order.customer_email || '').toLowerCase() !== sess.user.email.toLowerCase()) {
-    return { ok: false, error: 'ไม่พบคำสั่งซื้อของคุณ' };
-  }
-  if (!String(body.message || '').trim() && !body.image_base64) {
-    return { ok: false, error: 'พิมพ์ข้อความหรือแนบรูปก่อน' };
-  }
-
-  return _sendMessage({
-    order_id: orderId,
-    User_id: sess.user.user_id,
-    customer_email: sess.user.email,
-    sender: 'customer',
-    message: body.message,
-    image_base64: body.image_base64,
-    image_name: body.image_name,
-    image_type: body.image_type
-  });
-}
-
-/** ข้อความในออเดอร์หนึ่ง (ลูกค้าดูของตัวเองเท่านั้น) */
-function _customerMessages(body) {
-  const sess = _session(body);
-  if (!sess.ok) return sess;
-
-  const orderId = String(body.order_id || '');
-  const order = _readSheet(SHEET_ORDERS).filter(function (o) {
-    return String(o.order_id) === orderId;
-  })[0];
-  if (!order) return { ok: false, error: 'ไม่พบคำสั่งซื้อ' };
-  if (String(order.customer_email || '').toLowerCase() !== sess.user.email.toLowerCase()) {
-    return { ok: false, error: 'ไม่พบคำสั่งซื้อของคุณ' };
-  }
-
-  return { ok: true, messages: _threadMessages(orderId, false) };
-}
-
 /**
- * ดึงข้อความของออเดอร์
- * showImages = true เฉพาะแอดมิน (ลิงก์ Drive เปิดได้เฉพาะเจ้าของโฟลเดอร์)
- * ลูกค้าเห็นแค่ว่า "แนบสลิปแล้ว" ไม่ต้องเห็นรูปซ้ำ
+ * เพิ่ม/แก้สินค้า (เฉพาะแอดมิน)
+ *
+ * ⚠️ เขียนโดย "ชื่อคอลัมน์" ไม่ใช่ตำแหน่ง
+ *    ถ้าเขียนตามตำแหน่ง (index) แล้วเจ้าของสลับคอลัมน์ในชีต
+ *    ข้อมูลจะไปลงผิดช่องทันที เช่น ราคาไปลงช่องชื่อสินค้า
  */
-function _threadMessages(orderId, showImages) {
-  return _readSheet(SHEET_MESSAGES)
-    .filter(function (m) { return String(m.order_id) === String(orderId); })
-    .map(function (m) {
-      return {
-        id: String(m.message_id),
-        sender: String(m.sender || ''),
-        message: String(m.message || ''),
-        hasImage: !!String(m.image_url || ''),
-        imageUrl: showImages && m.image_url
-          ? 'https://drive.google.com/thumbnail?id=' + String(m.image_url) + '&sz=w1000'
-          : '',
-        sentAt: _fmtDateTime(m.sent_at)
-      };
-    });
-}
-
-/** inbox ของแอดมิน — สรุปเป็นกระทู้ตามออเดอร์ */
-function _adminInbox() {
-  const orders = _readSheet(SHEET_ORDERS);
-  const msgs = _readSheet(SHEET_MESSAGES);
-
-  const out = orders.map(function (o) {
-    const thread = msgs.filter(function (m) {
-      return String(m.order_id) === String(o.order_id);
-    });
-    const last = thread.length ? thread[thread.length - 1] : null;
-    const unread = thread.filter(function (m) {
-      return String(m.sender) === 'customer' && !String(m.read_at || '');
-    }).length;
-
-    return {
-      orderId: String(o.order_id),
-      customerEmail: String(o.customer_email || ''),
-      customerName: String(o.customer_name || ''),
-      UserId: String(o.User_id || ''),
-      status: _normStatus(o.status),
-      total: Math.round(Number(o.total_satang || 0) / 100),
-      createdAt: _fmtDate(o.created_at),
-      libraryGranted: _normBool(o.library_granted),
-      lastMessage: last ? String(last.message || (last.image_url ? '📎 ส่งสลิป' : '')) : '',
-      lastAt: last ? _fmtDateTime(last.sent_at) : '',
-      unread: unread
-    };
-  }).sort(function (a, b) {
-    if (a.lastAt === b.lastAt) return 0;
-    return a.lastAt < b.lastAt ? 1 : -1;
-  });
-
-  return { ok: true, threads: out };
-}
-
-/** แอดมินเปิดกระทู้ + เปลี่ยนสถานะว่าอ่านแล้ว */
-function _adminThread(orderId) {
-  const msgs = _readSheet(SHEET_MESSAGES).filter(function (m) {
-    return String(m.order_id) === String(orderId);
-  });
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_MESSAGES);
-  const headers = _header(SHEET_MESSAGES).map(function (h) { return String(h || ''); });
-  const cOrder = headers.indexOf('order_id');
-  const cRead = headers.indexOf('read_at');
-  if (cOrder !== -1 && cRead !== -1 && msgs.length) {
-    const data = sh.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][cOrder]) !== String(orderId)) continue;
-      if (String(data[i][headers.indexOf('sender')]) === 'customer' &&
-          !String(data[i][cRead] || '')) {
-        sh.getRange(i + 1, cRead + 1).setValue(new Date());
-      }
-    }
-  }
-  return { ok: true, messages: _threadMessages(orderId, true) };
-}
-
-/** แอดมินตอบกลับ */
-function _adminReply(body, adminEmail) {
-  const orderId = String(body.order_id || '');
-  const order = _readSheet(SHEET_ORDERS).filter(function (o) {
-    return String(o.order_id) === orderId;
-  })[0];
-  if (!order) return { ok: false, error: 'ไม่พบคำสั่งซื้อ' };
-  if (!String(body.message || '').trim() && !body.image_base64) {
-    return { ok: false, error: 'พิมพ์ข้อความก่อน' };
-  }
-  return _sendMessage({
-    order_id: orderId,
-    User_id: order.User_id,
-    customer_email: order.customer_email,
-    sender: 'admin',
-    message: body.message,
-    image_base64: body.image_base64,
-    image_name: body.image_name,
-    image_type: body.image_type
-  });
-}
-
-/** เพิ่ม/แก้สินค้า (เฉพาะแอดมิน) */
 function _upsertProduct(p) {
   const id = String(p.id || '').trim();
   const title = String(p.title || '').trim();
@@ -1559,24 +1366,30 @@ function _upsertProduct(p) {
   const priceSatang = Math.round(Number(p.price || 0) * 100);
   if (priceSatang < 0) return { ok: false, error: 'ราคาไม่ถูกต้อง' };
 
-  const row = [
-    id, title,
-    String(p.description || ''), String(p.longDescription || ''),
-    CATEGORY_LIST.indexOf(p.category) !== -1 ? p.category : 'เอกสาร',
-    DOC_LANG_LIST.indexOf(p.documentLanguage) !== -1 ? p.documentLanguage : 'th',
-    DOC_LANG_LIST.indexOf(p.descriptionLanguage) !== -1 ? p.descriptionLanguage : 'th',
-    DOC_TYPE_LIST.indexOf(p.documentType) !== -1 ? p.documentType : 'other',
-    Array.isArray(p.tags) ? p.tags.join(',') : String(p.tags || ''),
-    priceSatang,
-    p.oldPrice ? Math.round(Number(p.oldPrice) * 100) : '',
-    Math.max(1, Number(p.pages || 1)),
-    String(p.fileSize || 'PDF'),
-    Number(p.rating || 0), Number(p.sales || 0),
-    String(p.coverColor || '#1d4ed8'),
-    p.featured === true || p.featured === 'true',
-    ['published', 'draft', 'archived'].indexOf(p.status) !== -1 ? p.status : 'draft',
-    new Date()
-  ];
+  // 🗺 ค่าที่จะเขียน ผูกกับ "ชื่อคอลัมน์" เท่านั้น
+  const values = {
+    product_id: id,
+    title: title,
+    description: String(p.description || ''),
+    long_description: String(p.longDescription || ''),
+    category: CATEGORY_LIST.indexOf(p.category) !== -1 ? p.category : 'เอกสาร',
+    document_language: DOC_LANG_LIST.indexOf(p.documentLanguage) !== -1 ? p.documentLanguage : 'th',
+    description_language: DOC_LANG_LIST.indexOf(p.descriptionLanguage) !== -1 ? p.descriptionLanguage : 'th',
+    document_type: DOC_TYPE_LIST.indexOf(p.documentType) !== -1 ? p.documentType : 'other',
+    tags: Array.isArray(p.tags) ? p.tags.join(',') : String(p.tags || ''),
+    price_satang: priceSatang,
+    old_price_satang: p.oldPrice ? Math.round(Number(p.oldPrice) * 100) : '',
+    pages: Math.max(1, Number(p.pages || 1)),
+    file_size: String(p.fileSize || 'PDF'),
+    rating: Number(p.rating || 0),
+    sales: Number(p.sales || 0),
+    cover_color: String(p.coverColor || '#1d4ed8'),
+    featured: p.featured === true || p.featured === 'true',
+    // ⚠️ ค่าเริ่มต้นต้องเป็น published ไม่ใช่ draft
+    //    เพราะ _listProducts กรองเฉพาะ published → ถ้าเป็น draft สินค้าจะไม่โผล่บนเว็บเลย
+    status: ['published', 'draft', 'archived'].indexOf(p.status) !== -1 ? p.status : 'published',
+    created_at: new Date()
+  };
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -1590,12 +1403,63 @@ function _upsertProduct(p) {
     for (let i = 1; i < data.length; i++) {
       if (String(data[i][cId]) === id) { found = i + 1; break; }
     }
+
     if (found > 0) {
-      sh.getRange(found, 1, 1, row.length).setValues([row]);
+      // แก้ไข: เขียนทีละคอลัมน์ตามชื่อ (ไม่ทับ created_at เดิม)
+      for (const name in values) {
+        if (name === 'created_at') continue;
+        const c = headers.indexOf(name);
+        if (c === -1) continue;
+        sh.getRange(found, c + 1).setValue(values[name]);
+      }
       return { ok: true, message: 'บันทึกการแก้ไขแล้ว', id: id };
     }
-    _appendRow(SHEET_PRODUCTS, row);
+
+    // เพิ่มใหม่: เตรียมแถวตามจำนวนคอลัมน์จริงในชีต แล้วเขียนตามชื่อ
+    const cols = headers.length;
+    const row = [];
+    for (let i = 0; i < cols; i++) row.push('');
+    for (const name in values) {
+      const c = headers.indexOf(name);
+      if (c !== -1) row[c] = values[name];
+    }
+    sh.appendRow(row);
     return { ok: true, message: 'เพิ่มสินค้าแล้ว', id: id };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * ลบสินค้า (เฉพาะแอดมิน)
+ * 🛡 ลบจริงจากชีต แต่เก็บประวัติไว้ในคอมเมนต์ช่องข้อมูลเดิม
+ */
+function _deleteProduct(productId) {
+  const id = String(productId || '').trim();
+  if (!id) return { ok: false, error: 'ไม่มีรหัสสินค้า' };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_PRODUCTS);
+    const headers = _header(SHEET_PRODUCTS);
+    const data = sh.getDataRange().getValues();
+    const cId = headers.indexOf('product_id');
+    const cStatus = headers.indexOf('status');
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][cId]) === id) {
+        // ปัดสถานะเป็น archived แทนการลบแถวทิ้ง
+        // → ข้อมูลออเดอร์เก่าที่อ้างถึงสินค้านี้ยังอ้างอิงได้
+        if (cStatus !== -1) {
+          sh.getRange(i + 1, cStatus + 1).setValue('archived');
+          return { ok: true, message: 'ซ่อนสินค้าจากหน้าเว็บแล้ว (เก็บประวัติไว้)', id: id };
+        }
+        sh.deleteRow(i + 1);
+        return { ok: true, message: 'ลบสินค้าแล้ว', id: id };
+      }
+    }
+    return { ok: false, error: 'ไม่พบสินค้านี้' };
   } finally {
     lock.releaseLock();
   }
@@ -1605,7 +1469,7 @@ function _upsertProduct(p) {
  * ยืนยัน / ปฏิเสธการจ่ายเงิน (เฉพาะแอดมิน)
  * ป้องกันการยืนยันซ้ำ: ถ้ายืนยันไปแล้ว จะไม่ทำอะไรอีก
  */
-function _verifyOrder(orderId, approve, adminEmail, adminNote) {
+function _verifyOrder(orderId, approve, adminEmail) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -1621,27 +1485,17 @@ function _verifyOrder(orderId, approve, adminEmail, adminNote) {
     }
     if (rowIdx === -1) return { ok: false, error: 'ไม่พบคำสั่งซื้อ' };
 
-    const current = _normStatus(data[rowIdx - 1][cStatus]);
-    // 🛡 กันยืนยันซ้ำ/กันทับสถานะเดิม (ต้องเป็น P = รอตรวจเท่านั้น)
-    if (current !== ORDER_STATUS.PENDING) {
-      return {
-        ok: false,
-        error: 'คำสั่งซื้อนี้ถูกดำเนินการแล้ว (สถานะปัจจุบัน: ' + (current || 'ว่าง') + ')'
-      };
+    const current = String(data[rowIdx - 1][cStatus]);
+    // 🛡 กันยืนยันซ้ำ/กันทับสถานะเดิม
+    if (current !== ORDER_STATUS.NEW) {
+      return { ok: false, error: 'คำสั่งซื้อนี้ถูกดำเนินการแล้ว (' + current + ')' };
     }
 
     const email = String(adminEmail || '');
-    const target = approve ? ORDER_STATUS.SUCCESS : ORDER_STATUS.FAILED;
-    // ✅ เขียนโดยอ้างชื่อคอลัมน์ (ไม่สนลำดับในชีต)
-    const updates = { status: target, verified_at: new Date() };
-    const cNote = headers.indexOf('admin_note');
-    if (cNote !== -1 && typeof adminNote === 'string') {
-      updates.admin_note = adminNote;
-    }
-    Object.keys(updates).forEach(function (name) {
-      const c = headers.indexOf(name);
-      if (c !== -1) sh.getRange(rowIdx, c + 1).setValue(updates[name]);
-    });
+    const target = approve ? ORDER_STATUS.PAID : ORDER_STATUS.REJECTED;
+    sh.getRange(rowIdx, cStatus + 1).setValue(target);
+    sh.getRange(rowIdx, headers.indexOf('verified_by') + 1).setValue(email);
+    sh.getRange(rowIdx, headers.indexOf('verified_at') + 1).setValue(new Date());
 
     let granted = 0;
     if (approve) {
@@ -1729,57 +1583,6 @@ function _readSheet(sheetName) {
 function _appendRow(sheetName, values) {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
   sh.appendRow(values);
-}
-
-/**
- * เพิ่มแถวใหม่โดยอ้างอิง "ชื่อคอลัมน์" ไม่ใช่ตำแหน่ง
- *
- * 🛡 ทำไมต้องทำแบบนี้: เจ้าของร้านจัดลำดับคอลัมน์เองในชีต
- *    ถ้าเขียนตามตำแหน่ง พอลำดับเปลี่ยนข้อมูลจะลงผิดช่องทันที
- *    ฟังก์ชันนี้จึงหาช่องจากชื่อหัวตาราง แล้วเขียนลงช่องนั้น
- *
- * ค่าที่ไม่มีใน headers จะถูกเมิน (ไม่ทำให้พัง)
- */
-function _appendByHeader(sheetName, obj) {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
-  if (!sh) throw new Error('ไม่พบแท็บ ' + sheetName);
-  const lastCol = Math.max(sh.getLastColumn(), 1);
-  const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0]
-    .map(function (h) { return String(h || '').trim(); });
-
-  const row = headers.map(function (h) {
-    return Object.prototype.hasOwnProperty.call(obj, h) ? obj[h] : '';
-  });
-  sh.appendRow(row);
-  return row;
-}
-
-/** เขียนค่าลงแถวที่ตรงเงื่อนไข โดยอ้างชื่อคอลัมน์ */
-function _updateByHeader(sheetName, keyColumn, keyValue, updates) {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
-  if (!sh) return false;
-  const headers = _header(sheetName).map(function (h) { return String(h || '').trim(); });
-  const cKey = headers.indexOf(keyColumn);
-  if (cKey === -1) return false;
-
-  const data = sh.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][cKey]) !== String(keyValue)) continue;
-    Object.keys(updates).forEach(function (name) {
-      const c = headers.indexOf(name);
-      if (c !== -1) sh.getRange(i + 1, c + 1).setValue(updates[name]);
-    });
-    return true;
-  }
-  return false;
-}
-
-/** วันที่+เวลา รูปแบบ yyyy-MM-dd HH:mm (เวลาไทย) */
-function _fmtDateTime(v) {
-  if (v instanceof Date) {
-    return Utilities.formatDate(v, 'Asia/Bangkok', 'yyyy-MM-dd HH:mm');
-  }
-  return String(v || '');
 }
 
 function _fmtDate(v) {

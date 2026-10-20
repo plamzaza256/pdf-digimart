@@ -4,7 +4,9 @@ import { formatPrice } from '../data/products';
 import { useShop } from '../store/shop';
 
 export default function ProductCard({ p }: { p: Product }) {
-  const { addToCart } = useShop();
+  const { isFavorite, toggleFavorite } = useShop();
+  const liked = isFavorite(p.id);
+
   return (
     <article className="card">
       <Link to={`/product/${p.id}`} className="cover" style={{ background: p.coverColor }}>
@@ -17,17 +19,23 @@ export default function ProductCard({ p }: { p: Product }) {
         <Link to={`/product/${p.id}`} className="card-title">{p.title}</Link>
         <p className="card-desc">{p.description}</p>
         <div className="card-meta">
-          <span>⭐ {p.rating.toFixed(1)}</span>
-          <span>•</span>
-          <span>ขายแล้ว {p.sales.toLocaleString('th-TH')}</span>
+          {/* ⛔ โชว์เฉพาะตัวเลขที่มีจริง — ไม่โชว์ยอดขายปลอม */}
+          {p.rating > 0 && <><span>⭐ {p.rating.toFixed(1)}</span><span>•</span></>}
+          {p.sales > 0 && <span>ขายแล้ว {p.sales.toLocaleString('th-TH')}</span>}
+          {p.rating <= 0 && p.sales <= 0 && <span>สินค้าใหม่</span>}
         </div>
         <div className="card-foot">
           <div className="price">
             <strong>{formatPrice(p.price)}</strong>
             {p.oldPrice && <s>{formatPrice(p.oldPrice)}</s>}
           </div>
-          <button className="btn btn-primary btn-sm" onClick={() => addToCart(p.id)}>
-            หยิบใส่ตะกร้า
+          <button
+            className={`btn btn-star btn-sm${liked ? ' is-on' : ''}`}
+            onClick={() => toggleFavorite(p.id)}
+            aria-pressed={liked}
+          >
+            <span className={`star-icon${liked ? '' : ' is-empty'}`}>★</span>
+            {liked ? 'ถูกใจแล้ว' : 'กดถูกใจ'}
           </button>
         </div>
       </div>

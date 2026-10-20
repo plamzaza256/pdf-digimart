@@ -16,6 +16,8 @@ export interface Product {
   coverColor: string;
   tags: string[];
   featured?: boolean;
+  /** สถานะการเผยแพร่ — เว็บร้านแสดงเฉพาะ published */
+  status?: 'published' | 'draft' | 'archived';
   createdAt: string;
 }
 
@@ -47,7 +49,6 @@ export interface Order {
   email: string;
   items: OrderItem[];
   total: number;
-  /** รุ่นแรกเป็นสถานะจำลองทั้งหมด ยังไม่มีชำระเงินจริง */
-  status: 'คำสั่งซื้อจำลอง — ยังไม่ชำระเงิน';
+  status: string;
   createdAt: string;
 }

@@ -33,7 +33,7 @@ export default function Shop() {
   return (
     <div className="container page">
       <h1>หน้าร้าน — ไฟล์ PDF ทั้งหมด</h1>
-      <p className="muted">ข้อมูลจำลอง {products.length} รายการ • ยังไม่เปิดดาวน์โหลดไฟล์ฉบับเต็ม</p>
+      <p className="muted">ทั้งหมด {products.length} รายการ • กดดาวเก็บสินค้าที่ถูกใจ แล้วกดสั่งซื้อผ่าน LINE OA</p>
 
       <div className="toolbar">
         <input

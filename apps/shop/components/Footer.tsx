@@ -1,19 +1,22 @@
 import { Link } from 'react-router-dom';
+import { useStoreConfig } from '@shared/store/config';
 
 export default function Footer() {
+  const { config } = useStoreConfig();
+  const storeName = config?.store_name || 'PDF ให้แม่มึงทำ';
+
   return (
     <footer className="footer">
       <div className="container footer-grid">
         <div>
-          <strong>PDF ให้แม่มึงทำ (รุ่นทดลอง)</strong>
+          <strong>{storeName}</strong>
           <p>
             ร้านขายไฟล์ดิจิทัล — หนังสือ เอกสาร และข้อสอบ
             ในรูปแบบ PDF สำหรับคนไทย
           </p>
           <p className="muted small">
-            เว็บไซต์นี้เป็นระบบจำลองเพื่อทดสอบหน้าตาและขั้นตอนการใช้งานเท่านั้น
-            ยังไม่มีการชำระเงินจริง ยังไม่เก็บข้อมูลสำคัญจริง
-            และยังไม่เปิดดาวน์โหลดไฟล์ฉบับเต็ม
+            ดูตัวอย่างสินค้าได้ฟรี กดสั่งซื้อเพื่อไปสั่งซื้อที่ LINE OA ของร้าน
+            เจ้าของร้านเป็นผู้ส่งไฟล์ให้หลังยืนยันยอด
           </p>
         </div>
         <div>
@@ -21,21 +24,21 @@ export default function Footer() {
           <ul className="footer-links">
             <li><Link to="/">หน้าแรก</Link></li>
             <li><Link to="/shop">หน้าร้าน</Link></li>
-            <li><Link to="/orders">คำสั่งซื้อของฉัน</Link></li>
+            <li><Link to="/favorites">สินค้าที่ถูกใจ</Link></li>
             <li><Link to="/login">เข้าสู่ระบบ</Link></li>
           </ul>
         </div>
         <div>
-          <strong>แผนในอนาคต (ยังไม่เปิดใช้)</strong>
+          <strong>ติดต่อเรา</strong>
           <ul className="footer-links">
-            <li>เชื่อมฐานข้อมูล + ระบบสมาชิกจริง</li>
-            <li>ชำระเงินผ่าน PromptPay / บัตร</li>
-            <li>ระบบส่งลิงก์ดาวน์โหลดอัตโนมัติ</li>
+            {config?.contact_line && <li>LINE: {config.contact_line}</li>}
+            {config?.contact_email && <li>อีเมล: {config.contact_email}</li>}
+            <li>สั่งซื้อผ่าน LINE OA ของร้าน</li>
           </ul>
         </div>
       </div>
       <div className="footer-bottom">
-        © 2026 PDF ให้แม่มึงทำ — สร้างด้วย React + Vite • งบ 0 บาท • อ่านเพลิน สอบผ่าน แม่ภูมิใจ
+        © 2026 {storeName} — สร้างด้วย React + Vite • งบ 0 บาท • อ่านเพลิน สอบผ่าน แม่ภูมิใจ
       </div>
     </footer>
   );

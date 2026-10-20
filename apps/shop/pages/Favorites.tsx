@@ -1,0 +1,51 @@
+import { Link } from 'react-router-dom';
+import { useShop } from '../store/shop';
+import { formatPrice } from '../data/products';
+import OrderLineButton from '@shared/components/OrderLineButton';
+
+/**
+ * หน้า "สินค้าที่ถูกใจ"
+ *
+ * โหมด billboard: ลูกค้ากดถูกใจสินค้าที่อยากได้ แล้วกดสั่งซื้อเพื่อไป LINE OA
+ * ไม่มีตะกร้า ไม่มีการชำระเงินในเว็บ
+ */
+export default function Favorites() {
+  const { favorites, products, toggleFavorite } = useShop();
+
+  const items = favorites
+    .map((id) => products.find((p) => p.id === id))
+    .filter((p): p is NonNullable<typeof p> => Boolean(p));
+
+  return (
+    <div className="container page narrow">
+      <h1>สินค้าที่ถูกใจ ({items.length})</h1>
+      <p className="muted">
+        สินค้าที่คุณกดถูกใจไว้ — กดสั่งซื้อเพื่อไปที่ LINE OA ของร้าน
+      </p>
+
+      {items.length === 0 ? (
+        <div className="empty">
+          ยังไม่มีสินค้าที่ถูกใจ <br /><br />
+          <Link to="/shop" className="btn btn-primary">ไปเลือกดูสินค้า</Link>
+        </div>
+      ) : (
+        <>
+          {items.map((p) => (
+            <div key={p.id} className="cart-line">
+              <div>
+                <b>{p.title}</b>
+                <div className="muted small">{formatPrice(p.price)} / ไฟล์</div>
+              </div>
+              <div className="cart-ctrl">
+                <OrderLineButton size="sm" productTitle={p.title} />
+                <button className="link danger" onClick={() => toggleFavorite(p.id)}>
+                  เอาออก
+                </button>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}

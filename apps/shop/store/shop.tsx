@@ -1,9 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { CartLine, Product } from '@shared/types';
+import type { Product } from '@shared/types';
+import { mockProducts } from '../data/products';
 import { apiListProducts } from '@shared/lib/api';
 
-const CART_KEY = 'pdfshop_cart_v1';
+const FAVORITES_KEY = 'pdfshop_favorites_v1';
 
 function loadJSON<T>(key: string, fallback: T): T {
   try {
@@ -17,36 +18,43 @@ function loadJSON<T>(key: string, fallback: T): T {
 
 interface ShopState {
   products: Product[];
-  /** true = กำลังโหลดรายการสินค้าจากชีต */
+  /** true = ดึงข้อมูลจากชีตจริง, false = ยังใช้รายการตัวอย่างในโค้ด */
+  fromSheet: boolean;
   loading: boolean;
-  cart: CartLine[];
-  cartCount: number;
-  cartTotal: number;
-  addToCart: (id: string) => void;
-  removeFromCart: (id: string) => void;
-  setQty: (id: string, qty: number) => void;
-  clearCart: () => void;
+  /** รหัสสินค้าที่ลูกค้ากดถูกใจ */
+  favorites: string[];
+  favoriteCount: number;
+  isFavorite: (id: string) => boolean;
+  toggleFavorite: (id: string) => void;
 }
 
 const ShopContext = createContext<ShopState | null>(null);
 
 export function ShopProvider({ children }: { children: ReactNode }) {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const [fromSheet, setFromSheet] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [cart, setCart] = useState<CartLine[]>(() => loadJSON<CartLine[]>(CART_KEY, []));
+  const [favorites, setFavorites] = useState<string[]>(() =>
+    loadJSON<string[]>(FAVORITES_KEY, []),
+  );
 
-  // 📦 สินค้ามาจากชีตจริงเท่านั้น (ไม่มีข้อมูลจำลองในโค้ดแล้ว)
+  useEffect(() => {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+  }, [favorites]);
+
+  // 📡 ดึงสินค้าจากชีตจริง — เพื่อให้ที่แอดมินแก้ เว็บร้านเปลี่ยนตามทันที
   useEffect(() => {
     let cancelled = false;
     apiListProducts()
       .then((r) => {
         if (cancelled) return;
-        if (r.ok && Array.isArray(r.products)) {
+        if (r.ok && Array.isArray(r.products) && r.products.length > 0) {
           setProducts(r.products as Product[]);
+          setFromSheet(true);
         }
       })
       .catch(() => {
-        /* ต่อเซิร์ฟเวอร์ไม่ได้ — ปล่อยว่างไว้ หน้าเว็บจะแจ้งเอง */
+        /* ต่อเซิร์ฟเวอร์ไม่ได้ → ใช้รายการตัวอย่าง */
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -56,47 +64,23 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(CART_KEY, JSON.stringify(cart));
-  }, [cart]);
-
-  const priceOf = useCallback(
-    (id: string) => products.find((p) => p.id === id)?.price ?? 0,
-    [products],
-  );
-
-  const cartTotal = cart.reduce((sum, l) => sum + priceOf(l.productId) * l.qty, 0);
-  const cartCount = cart.reduce((sum, l) => sum + l.qty, 0);
+  const toggleFavorite = (id: string) => {
+    setFavorites((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
 
   const value = useMemo<ShopState>(
     () => ({
       products,
+      fromSheet,
       loading,
-      cart,
-      cartCount,
-      cartTotal,
-      addToCart(id) {
-        setCart((prev) => {
-          const f = prev.find((l) => l.productId === id);
-          if (f) return prev.map((l) => (l.productId === id ? { ...l, qty: l.qty + 1 } : l));
-          return [...prev, { productId: id, qty: 1 }];
-        });
-      },
-      removeFromCart(id) {
-        setCart((prev) => prev.filter((l) => l.productId !== id));
-      },
-      setQty(id, qty) {
-        if (qty <= 0) {
-          setCart((prev) => prev.filter((l) => l.productId !== id));
-          return;
-        }
-        setCart((prev) => prev.map((l) => (l.productId === id ? { ...l, qty } : l)));
-      },
-      clearCart() {
-        setCart([]);
-      },
+      favorites,
+      favoriteCount: favorites.length,
+      isFavorite: (id: string) => favorites.includes(id),
+      toggleFavorite,
     }),
-    [products, loading, cart, cartTotal, cartCount],
+    [products, fromSheet, loading, favorites],
   );
 
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;

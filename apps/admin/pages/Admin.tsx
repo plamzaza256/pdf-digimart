@@ -3,6 +3,8 @@ import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAdminShop } from '../store/products';
 import { useAuth } from '@shared/store/auth';
+import { useStoreConfig } from '@shared/store/config';
+import { apiSetConfig } from '@shared/lib/api';
 import type { Category, Product } from '@shared/types';
 import { formatPrice } from '@shared/lib/format';
 
@@ -15,19 +17,25 @@ const empty: Product = {
   price: 99,
   pages: 100,
   fileSize: 'PDF • 5 MB',
-  rating: 5,
+  rating: 0,
   sales: 0,
   coverColor: '#1d4ed8',
   tags: [],
   featured: false,
+  status: 'published',
   createdAt: new Date().toISOString().slice(0, 10),
 };
 
 export default function Admin() {
-  const { products, addProduct, updateProduct, deleteProduct, loading, fromSheet } = useAdminShop();
-  const { user } = useAuth();
+  const { products, addProduct, updateProduct, deleteProduct, loading, fromSheet, saving, message, messageType } =
+    useAdminShop();
+  const { user, token } = useAuth();
+  const { config, lineOaLink } = useStoreConfig();
   const [form, setForm] = useState<Product>(empty);
   const [editing, setEditing] = useState<string | null>(null);
+  const [lineLink, setLineLink] = useState('');
+  const [lineMsg, setLineMsg] = useState('');
+  const [lineSaving, setLineSaving] = useState(false);
 
   if (!user || user.role !== 'admin') {
     return (
@@ -42,7 +50,7 @@ export default function Admin() {
     );
   }
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) return;
     const p: Product = {
@@ -51,16 +59,25 @@ export default function Admin() {
       tags: form.tags.map((t) => t.trim()).filter((t) => t.length > 0),
       createdAt: form.createdAt || new Date().toISOString().slice(0, 10),
     };
-    if (editing) updateProduct(p.id, p);
-    else addProduct(p);
-    setForm(empty);
-    setEditing(null);
+    const ok = editing ? await updateProduct(editing, p) : await addProduct(p);
+    if (ok) {
+      setForm(empty);
+      setEditing(null);
+    }
   };
 
   const startEdit = (p: Product) => {
-    setForm({ ...p });
+    setForm({ ...p, tags: [...(p.tags || [])] });
     setEditing(p.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const saveLine = async () => {
+    if (!token) return;
+    setLineSaving(true);
+    const r = await apiSetConfig(user.email, token, 'line_oa_link', lineLink.trim());
+    setLineSaving(false);
+    setLineMsg(r.ok ? 'บันทึกลิงก์ LINE OA แล้ว' : r.error || 'บันทึกไม่สำเร็จ');
   };
 
   return (
@@ -68,12 +85,52 @@ export default function Admin() {
       <h1>จัดการสินค้า</h1>
       <p className="muted">
         {loading
-          ? 'กำลังโหลดสินคาจากชีต…'
+          ? 'กำลังโหลดสินค้าจากชีต…'
           : fromSheet
-            ? 'ดึงข้อมูลจาก Google Sheets แล้ว'
-            : 'ยังดึงข้อมูลจากชีตไม่ได้ — ตอนนี้ยังแก้ได้แค่ในหน้านี้'}
+            ? 'ดึงข้อมูลจาก Google Sheets แล้ว — แก้แล้วเว็บร้านจะเปลี่ยนตามทันที'
+            : 'ยังดึงข้อมูลจากชีตไม่ได้'}
       </p>
 
+      {message && (
+        <div className={messageType === 'error' ? 'error' : 'notice ok-box'}>
+          {message}
+        </div>
+      )}
+
+      {/* ---------------- ตั้งค่าร้าน ---------------- */}
+      <section className="admin-settings">
+        <h2 className="sec-title">ตั้งค่าร้าน</h2>
+        <div className="form admin-form">
+          <label>
+            ลิงก์ LINE OA ของร้าน
+            <input
+              className="input"
+              value={lineLink}
+              onChange={(e) => setLineLink(e.target.value)}
+              placeholder="https://line.me/R/ti/p/@xxxxxxxxxx"
+            />
+          </label>
+          <p className="muted small">
+            ปุ่มสีเขียว “สั่งซื้อ” บนเว็บจะพาลูกค้าไปที่ลิงก์นี้
+            (คัดลอกจาก LINE OA → เพิ่มเพื่อน → คัดลอกลิงก์)
+            <br />
+            ปัจจุบัน: {lineOaLink ? lineOaLink : '⚠️ ยังไม่ได้ตั้ง — ปุ่มสั่งซื้อจะยังพาไปไม่ได้'}
+          </p>
+          <div className="form-row">
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={saveLine}
+              disabled={lineSaving}
+            >
+              {lineSaving ? 'กำลังบันทึก…' : 'บันทึกลิงก์ LINE OA'}
+            </button>
+          </div>
+          {lineMsg && <p className="muted small">{lineMsg}</p>}
+        </div>
+      </section>
+
+      {/* ---------------- ฟอร์มสินค้า ---------------- */}
       <form className="form admin-form" onSubmit={submit}>
         <h3>{editing ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}</h3>
         <div className="grid2">
@@ -95,33 +152,74 @@ export default function Admin() {
         <div className="grid3">
           <label>ขนาดไฟล์ (ข้อความ)<input className="input" value={form.fileSize} onChange={(e) => setForm({ ...form, fileSize: e.target.value })} /></label>
           <label>สีปก<input className="input" type="color" value={form.coverColor} onChange={(e) => setForm({ ...form, coverColor: e.target.value })} /></label>
+          <label>สถานะ
+            <select className="input" value={form.status ?? 'published'} onChange={(e) => setForm({ ...form, status: e.target.value as Product['status'] })}>
+              <option value="published">เผยแพร่ (ขึ้นหน้าเว็บ)</option>
+              <option value="draft">ยังไม่เผยแพร่</option>
+              <option value="archived">ซ่อน</option>
+            </select>
+          </label>
+        </div>
+        <div className="grid3">
+          <label>คะแนน (0-5)<input className="input" type="number" min={0} max={5} step={0.1} value={form.rating} onChange={(e) => setForm({ ...form, rating: Number(e.target.value) })} /></label>
+          <label>ยอดขาย<input className="input" type="number" min={0} value={form.sales} onChange={(e) => setForm({ ...form, sales: Number(e.target.value) })} /></label>
           <label className="check"><input type="checkbox" checked={!!form.featured} onChange={(e) => setForm({ ...form, featured: e.target.checked })} /> แสดงในสินค้าแนะนำ</label>
         </div>
         <div className="form-row">
-          <button className="btn btn-primary" type="submit">{editing ? 'บันทึกการแก้ไข' : 'เพิ่มสินค้า'}</button>
+          <button className="btn btn-primary" type="submit" disabled={saving}>
+            {saving ? 'กำลังบันทึก…' : editing ? 'บันทึกการแก้ไข' : 'เพิ่มสินค้า'}
+          </button>
           {editing && <button type="button" className="btn btn-outline" onClick={() => { setForm(empty); setEditing(null); }}>ยกเลิก</button>}
         </div>
       </form>
 
-      <h2>สินค้าทั้งหมด ({products.length})</h2>
+      {/* ---------------- ตารางสินค้า ---------------- */}
+      <h2 className="sec-title">สินค้าทั้งหมด ({products.length})</h2>
       <div className="table-wrap">
         <table className="table">
-          <thead><tr><th>สินค้า</th><th>หมวด</th><th>ราคา</th><th>จัดการ</th></tr></thead>
+          <thead>
+            <tr>
+              <th>สินค้า</th><th>หมวด</th><th>ราคา</th><th>สถานะ</th><th>จัดการ</th>
+            </tr>
+          </thead>
           <tbody>
             {products.map((p) => (
               <tr key={p.id}>
-                <td><b>{p.title}</b><br /><span className="muted small">{p.id}</span></td>
+                <td>
+                  <b>{p.title}</b><br />
+                  <span className="muted small">{p.id}</span>
+                </td>
                 <td>{p.category}</td>
                 <td>{formatPrice(p.price)}</td>
+                <td>
+                  {p.status === 'published' ? (
+                    <span className="pill">เผยแพร่</span>
+                  ) : p.status === 'draft' ? (
+                    <span className="pill pill-mute">ยังไม่เผยแพร่</span>
+                  ) : (
+                    <span className="pill pill-mute">ซ่อน</span>
+                  )}
+                </td>
                 <td className="row-btns">
                   <button className="btn btn-outline btn-sm" onClick={() => startEdit(p)}>แก้ไข</button>
-                  <button className="btn btn-ghost btn-sm danger" onClick={() => { if (confirm(`ลบ “${p.title}” ?`)) deleteProduct(p.id); }}>ลบ</button>
+                  <button
+                    className="btn btn-ghost btn-sm danger"
+                    disabled={saving}
+                    onClick={() => {
+                      if (confirm(`ซ่อน “${p.title}” ออกจากหน้าเว็บ?`)) deleteProduct(p.id);
+                    }}
+                  >
+                    ซ่อน
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <p className="muted small">
+        ชื่อร้านปัจจุบัน: {config?.store_name || '—'}
+      </p>
     </div>
   );
 }

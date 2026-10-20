@@ -1,13 +1,11 @@
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useShop } from '../store/shop';
 import { formatPrice } from '../data/products';
-import { useAuth } from '@shared/store/auth';
+import OrderLineButton from '@shared/components/OrderLineButton';
 
 export default function ProductDetail() {
   const { id } = useParams();
-  const { products, addToCart } = useShop();
-  const { user } = useAuth();
-  const nav = useNavigate();
+  const { products, isFavorite, toggleFavorite } = useShop();
   const p = products.find((x) => x.id === id);
 
   if (!p) {
@@ -19,10 +17,7 @@ export default function ProductDetail() {
     );
   }
 
-  const buy = () => {
-    addToCart(p.id);
-    nav('/cart');
-  };
+  const liked = isFavorite(p.id);
 
   return (
     <div className="container page detail">
@@ -33,7 +28,7 @@ export default function ProductDetail() {
           <h2>{p.title}</h2>
           <p>{p.category} • {p.pages} หน้า • {p.fileSize}</p>
           <div className="preview-box">
-            🔒 ตัวอย่างไฟล์ (จำลอง) — รุ่นนี้ยังไม่เปิดดาวน์โหลดฉบับเต็ม
+            🔒 ตัวอย่างไฟล์ — รุ่นนี้ยังไม่เปิดดาวน์โหลดฉบับเต็ม
             และไม่มีไฟล์ส่วนตัวเก็บในพื้นที่สาธารณะ
           </div>
         </div>
@@ -42,8 +37,9 @@ export default function ProductDetail() {
           <h1>{p.title}</h1>
           <p className="muted">{p.description}</p>
           <div className="card-meta">
-            <span>⭐ {p.rating.toFixed(1)}</span><span>•</span>
-            <span>ขายแล้ว {p.sales.toLocaleString('th-TH')}</span><span>•</span>
+            {/* ⛔ โชว์เฉพาะตัวเลขที่มีจริง — ไม่โชว์ยอดขายปลอม */}
+            {p.rating > 0 && <><span>⭐ {p.rating.toFixed(1)}</span><span>•</span></>}
+            {p.sales > 0 && <><span>ขายแล้ว {p.sales.toLocaleString('th-TH')}</span><span>•</span></>}
             <span>{p.pages} หน้า</span>
           </div>
           <p>{p.longDescription}</p>
@@ -54,18 +50,23 @@ export default function ProductDetail() {
               {p.oldPrice && <s>{formatPrice(p.oldPrice)}</s>}
             </div>
             <div className="buy-btns">
-              <button className="btn btn-outline btn-lg" onClick={() => addToCart(p.id)}>หยิบใส่ตะกร้า</button>
-              <button className="btn btn-primary btn-lg" onClick={buy}>ซื้อเลย (จำลอง)</button>
+              <button
+                className={`btn btn-star btn-lg${liked ? ' is-on' : ''}`}
+                onClick={() => toggleFavorite(p.id)}
+                aria-pressed={liked}
+              >
+                <span className={`star-icon${liked ? '' : ' is-empty'}`}>★</span>
+                {liked ? 'ถูกใจแล้ว' : 'กดถูกใจ'}
+              </button>
+              <OrderLineButton size="lg" productTitle={p.title} />
             </div>
-            {!user && <p className="warn">💡 ต้องเข้าสู่ระบบ (จำลอง) ก่อนกดสั่งซื้อ — ระบบจำลองยังไม่ปลอดภัยจริง ห้ามใช้รหัสผ่านจริง</p>}
             <p className="muted small">
-              การสั่งซื้อในรุ่นนี้เป็นเพียงการจำลองขั้นตอน ยังไม่มีการชำระเงินจริง
-              และยังไม่ได้รับไฟล์จริงหลังสั่งซื้อ
+              กดสั่งซื้อเพื่อไปที่ LINE OA ของร้าน สอบถามรายละเอียดและชำระเงินได้ที่นั่น
             </p>
           </div>
           <dl className="spec">
             <div><dt>รหัสสินค้า</dt><dd>{p.id}</dd></div>
-            <div><dt>รูปแบบไฟล์</dt><dd>{p.fileSize} (จำลอง ไม่เปิดดาวน์โหลด)</dd></div>
+            <div><dt>รูปแบบไฟล์</dt><dd>{p.fileSize}</dd></div>
             <div><dt>จำนวนหน้า</dt><dd>{p.pages} หน้า</dd></div>
             <div><dt>อัปเดต</dt><dd>{p.createdAt}</dd></div>
           </dl>
