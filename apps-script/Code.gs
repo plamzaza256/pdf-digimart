@@ -204,6 +204,8 @@ function doGet(e) {
     if (action === 'product.detail') return _json(_productDetail(p.id));
     if (action === 'config') return _json(_getConfig());
     if (action === 'public.config') return _json(getPublicConfig());
+    // 📋 โครงสร้างชีต (อ่านอย่างเดียว ไม่ต้องล็อกอิน) — รองรับทั้ง GET และ POST
+    if (action === 'sheet.structure') return _json(_sheetStructure());
 
     return _json({ ok: false, error: 'ไม่รู้จักคำสั่ง: ' + action });
   } catch (err) {
