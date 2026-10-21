@@ -50,12 +50,37 @@ export function AdminShopProvider({ children }: { children: ReactNode }) {
     if (!user || !token) return;
     let cancelled = false;
     setLoading(true);
+
+    // 🛡 ลดการยิง API — โควตา Apps Script มีจำกัด
+    //    แคชสินค้าไว้ 30 วินาที เพื่อไม่ให้ยิงซ้ำทุกครั้งที่เปิดหน้า
+    const CACHE_KEY = 'pdfshop_admin_products_v1';
+    const CACHE_TTL = 30 * 1000;
+    let cached: { at: number; data: Product[] } | null = null;
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (raw) cached = JSON.parse(raw);
+    } catch {
+      cached = null;
+    }
+
+    if (cached && Date.now() - cached!.at < CACHE_TTL) {
+      setProducts(cached!.data);
+      setFromSheet(true);
+      setLoading(false);
+    }
+
     apiListProductsAll(user.email, token)
       .then((r) => {
         if (cancelled) return;
         if (r.ok && Array.isArray(r.products)) {
-          setProducts(r.products as Product[]);
+          const list = r.products as Product[];
+          setProducts(list);
           setFromSheet(true);
+          try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), data: list }));
+          } catch {
+            /* แคชไม่ได้ก็ไม่เป็นไร */
+          }
         } else {
           say(r.error || 'ดึงข้อมูลไม่สำเร็จ', 'error');
         }

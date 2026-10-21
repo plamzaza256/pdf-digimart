@@ -3,7 +3,7 @@ import { useShop } from '../store/shop';
 import ProductCard from '../components/ProductCard';
 
 export default function Home() {
-  const { products } = useShop();
+  const { products, loadError, reload } = useShop();
   // 🆕 สินค้าใหม่ล่าสุด (ไม่มีคอลัมน์ featured แล้ว — เจ้าของร้านลบทิ้ง)
   const featured = [...products]
     .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
@@ -32,6 +32,20 @@ export default function Home() {
           </ul>
         </div>
       </section>
+
+      {loadError && products.length === 0 && (
+        <section className="container">
+          <div className="notice warn-box">
+            <b>โหลดข้อมูลสินค้าไม่สำเร็จ</b>
+            <br />
+            เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — กรุณาลองใหม่อีกครั้ง
+            <br />
+            <button className="btn btn-outline btn-sm" onClick={reload} style={{ marginTop: 8 }}>
+              ลองใหม่
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className="container">
         <div className="sec-head">

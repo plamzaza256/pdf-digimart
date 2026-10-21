@@ -315,15 +315,6 @@ function doPost(e) {
 
 // ============================ ระบบสมาชิก ============================
 
-/**
- * ตรวจสอบรหัสผ่าน
- * ⚠️ ตอนนี้เก็บรหัสผ่านตามที่ผู้ใช้ตัดสินใจ (ยังไม่เข้ารหัส)
- *    ถ้าจะเปลี่ยนภายหลัง แก้แค่ฟังก์ชันนี้จุดเดียวทั้งระบบ
- */
-function _hashPassword(password) {
-  return String(password);
-}
-
 /** สร้างเลข User_id รูปแบบ UID_0001 ถึง UID_9999 */
 function _nextUserId() {
   const users = _readSheet(SHEET_USERS);
@@ -422,101 +413,6 @@ function _safeEqual(a, b) {
   return diff === 0;
 }
 
-/** สมัครสมาชิกใหม่ -> บันทึกลงชีต user_id */
-function _signup(body) {
-  const email = String(body.email || '').trim().toLowerCase();
-  const password = String(body.password || '');
-  const name = String(body.name || '').trim();
-
-  if (!name) return { ok: false, error: 'กรุณากรอกชื่อ' };
-  if (email.indexOf('@') === -1 || email.length < 5) {
-    return { ok: false, error: 'อีเมลไม่ถูกต้อง' };
-  }
-  if (password.length < 6) {
-    return { ok: false, error: 'รหัสผ่านต้องยาวอย่างน้อย 6 ตัวอักษร' };
-  }
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    // 🛡 กันสมัครซ้ำ: เช็คอีเมลต้องไม่มีอยู่แล้ว (รวมบัญชีที่สมัครด้วย Google)
-    if (_findUserRow(email)) {
-      return { ok: false, error: 'อีเมลนี้มีบัญชีแล้ว กรุณาเข้าสู่ระบบ' };
-    }
-
-    const userId = _nextUserId();
-    if (!userId) return { ok: false, error: 'เต็มจำนวนสมาชิกแล้ว' };
-
-    const today = _today();
-    const token = _newToken();
-
-    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_USERS);
-    const cols = _header(SHEET_USERS).length;
-    const row = [];
-    for (let i = 0; i < cols; i++) row.push('');
-    row[_header(SHEET_USERS).indexOf('User_id')] = userId;
-    row[_header(SHEET_USERS).indexOf('email')] = email;
-    row[_header(SHEET_USERS).indexOf('password')] = _hashPassword(password);
-    row[_header(SHEET_USERS).indexOf('name')] = name;
-    row[_header(SHEET_USERS).indexOf('Creation date')] = today;
-    row[_header(SHEET_USERS).indexOf('token')] = token;
-    row[_header(SHEET_USERS).indexOf('login_method')] = 'password';
-    sh.appendRow(row);
-
-    return {
-      ok: true,
-      message: 'สมัครสมาชิกสำเร็จ',
-      user: { user_id: userId, email: email, name: name,
-              created_at: today, login_method: 'password' },
-      token: token
-    };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/** เข้าสู่ระบบ: ต้องตรงทั้งอีเมลและรหัสผ่านในแถวเดียวกัน */
-function _login(body) {
-  const email = String(body.email || '').trim().toLowerCase();
-  const password = String(body.password || '');
-
-  if (!email || !password) return { ok: false, error: 'กรอกอีเมลและรหัสผ่าน' };
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    const found = _findUserRow(email);
-    if (!found) return { ok: false, error: 'ไม่พบบัญชีนี้ กรุณาสมัครสมาชิก' };
-
-    // 🛡 บัญชีที่สมัครด้วย Google จะไม่มีรหัสผ่านในชีต
-    //    ถ้าไม่เช็คตรงนี้ การส่งรหัสผ่านว่างจะทะลุเข้าบัญชีนั้นได้
-    if (String(found.row.password || '') === '') {
-      return {
-        ok: false,
-        error: 'บัญชีนี้สมัครด้วย Google กรุณาเข้าสู่ระบบด้วย Google'
-      };
-    }
-
-    if (!_safeEqual(found.row.password, _hashPassword(password))) {
-      return { ok: false, error: 'รหัสผ่านไม่ถูกต้อง' };
-    }
-
-    const today = _today();
-    _writeUserCell(found, 'last_login', today);
-    const token = _ensureToken(found);
-
-    // 🔒 ไม่ส่งรหัสผ่านกลับไปที่เบราว์เซอร์
-    return {
-      ok: true,
-      message: 'เข้าสู่ระบบสำเร็จ',
-      user: _publicUser(found.row),
-      token: token
-    };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
 /**
  * ยืนยันตัวตนด้วยอีเมล + รหัสผู้ใช้ (ไม่ต้องกรอกรหัสผ่านอีก)
  * ใช้ตอนเปิดหน้าเว็บใหม่ และตอนขอดูคลังไฟล์
@@ -534,33 +430,6 @@ function _session(body) {
   }
 
   return { ok: true, user: _publicUser(found.row) };
-}
-
-/** เปลี่ยนรหัสผ่าน (ต้องยืนยันรหัสเดิมก่อน) */
-function _changePassword(body) {
-  const email = String(body.email || '').trim().toLowerCase();
-  const oldPw = String(body.old_password || '');
-  const newPw = String(body.new_password || '');
-  if (newPw.length < 6) {
-    return { ok: false, error: 'รหัสผ่านใหม่ต้องยาวอย่างน้อย 6 ตัวอักษร' };
-  }
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    const found = _findUserRow(email);
-    if (!found) return { ok: false, error: 'ไม่พบบัญชีนี้' };
-    if (String(found.row.password || '') === '') {
-      return { ok: false, error: 'บัญชีนี้สมัครด้วย Google ไม่มีรหัสผ่านให้เปลี่ยน' };
-    }
-    if (!_safeEqual(found.row.password, _hashPassword(oldPw))) {
-      return { ok: false, error: 'รหัสผ่านเดิมไม่ถูกต้อง' };
-    }
-    _writeUserCell(found, 'password', _hashPassword(newPw));
-    return { ok: true, message: 'เปลี่ยนรหัสผ่านแล้ว' };
-  } finally {
-    lock.releaseLock();
-  }
 }
 
 /**
@@ -1508,13 +1377,6 @@ function _getConfig(key) {
     if (String(rows[i].key) === String(key)) return rows[i].value;
   }
   return '';
-}
-
-function _getConfigAll() {
-  const rows = _readSheet(SHEET_CONFIG);
-  const out = {};
-  for (let i = 0; i < rows.length; i++) out[rows[i].key] = rows[i].value;
-  return out;
 }
 
 // ============================ เขียนข้อมูล ============================

@@ -4,7 +4,7 @@ import ProductCard from '../components/ProductCard';
 import { CATEGORIES } from '../data/products';
 
 export default function Shop() {
-  const { products } = useShop();
+  const { products, loading, loadError, reload } = useShop();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<string>('ทั้งหมด');
   const [sort, setSort] = useState('popular');
@@ -33,7 +33,7 @@ export default function Shop() {
   return (
     <div className="container page">
       <h1>ไฟล์ PDF ทั้งหมด</h1>
-      <p className="muted">ทั้งหมด {products.length} รายการ • กดดาวเก็บสินค้าที่ถูกใจ แล้วกดสั่งซื้อผ่าน LINE OA</p>
+      <p className="muted">กดดาวเก็บสินค้าที่ถูกใจ แล้วกดสั่งซื้อผ่าน LINE OA</p>
 
       <div className="toolbar">
         <input
@@ -54,7 +54,19 @@ export default function Shop() {
         </select>
       </div>
 
-      {list.length === 0 ? (
+      {loadError && products.length === 0 ? (
+        <div className="notice warn-box">
+          <b>โหลดข้อมูลสินค้าไม่สำเร็จ</b>
+          <br />
+          เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ — กรุณาลองใหม่อีกครั้ง
+          <br />
+          <button className="btn btn-outline btn-sm" onClick={reload} style={{ marginTop: 8 }}>
+            ลองใหม่
+          </button>
+        </div>
+      ) : loading ? (
+        <div className="empty">กำลังโหลดสินค้า…</div>
+      ) : list.length === 0 ? (
         <div className="empty">ไม่พบสินค้าที่ค้นหา ลองเปลี่ยนคำค้นหรือหมวดหมู่</div>
       ) : (
         <div className="grid4">
