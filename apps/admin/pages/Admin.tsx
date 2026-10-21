@@ -184,7 +184,7 @@ export default function Admin() {
           <label>ชื่อสินค้า<input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></label>
           <label>หมวดหมู่
             <select className="input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as Category })}>
-              <option>หนังสือ</option><option>เอกสาร</option><option>ข้อสอบ</option>
+              <option>ห้อแล้ว</option><option>หนังสือ</option><option>Flashcard</option><option>อื่นๆ</option>
             </select>
           </label>
         </div>
@@ -202,8 +202,9 @@ export default function Admin() {
           <label>สถานะ
             <select className="input" value={form.status ?? 'published'} onChange={(e) => setForm({ ...form, status: e.target.value as Product['status'] })}>
               <option value="published">เผยแพร่ (ขึ้นหน้าเว็บ)</option>
-              <option value="draft">ยังไม่เผยแพร่</option>
-              <option value="archived">ซ่อน</option>
+              <option value="WIP">WIP (กำลังทำ)</option>
+              <option value="Paused">Paused (พักไว้)</option>
+              <option value="Discontinued">Discontinued (เลิกขาย)</option>
             </select>
           </label>
         </div>

@@ -1526,7 +1526,9 @@ function _upsertProduct(p) {
     title: title,
     description: String(p.description || ''),
     long_description: String(p.longDescription || ''),
-    category: CATEGORY_LIST.indexOf(p.category) !== -1 ? p.category : 'เอกสาร',
+    // ⚠️ ถ้าค่าที่ส่งมาไม่อยู่ในรายการ (เช่นชีตยังมีค่าเก่าอยู่)
+    //    → เก็บค่าเดิมไว้ อย่าเดาแทน ไม่งั้นข้อมูลจะเพี้ยนเงียบๆ
+    category: CATEGORY_LIST.indexOf(p.category) !== -1 ? p.category : String(p.category || ''),
     document_language: DOC_LANG_LIST.indexOf(p.documentLanguage) !== -1 ? p.documentLanguage : 'th',
     description_language: DOC_LANG_LIST.indexOf(p.descriptionLanguage) !== -1 ? p.descriptionLanguage : 'th',
     document_type: DOC_TYPE_LIST.indexOf(p.documentType) !== -1 ? p.documentType : 'other',
