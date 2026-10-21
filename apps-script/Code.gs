@@ -929,29 +929,19 @@ function _sheetStructure() {
       continue;
     }
 
-    const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+    // 🔎 หาแถวหัวตารางจริงอัตโนมัติ (บางชีตมีแถวชื่อรายงานที่แถว 1)
+    const all = sh.getRange(1, 1, lastRow, lastCol).getValues();
+    const hIdx = _findHeaderRow(all);
+    const headers = (all[hIdx] || []).map(function (h) {
       return String(h || '');
     });
 
-    const validations = [];
-    for (let c = 0; c < lastCol; c++) {
-      try {
-        const v = sh.getRange(2, c + 1).getDataValidation();
-        if (v) {
-          validations.push({
-            column: headers[c] || ('col' + (c + 1)),
-            type: String(v.getCriteriaType() || ''),
-            values: v.getCriteriaValues() || []
-          });
-        }
-      } catch (e) {
-        // ช่องนี้ไม่มี validation
-      }
-    }
+    // 📋 ตัวอย่างข้อมูล 3 แถว (ไม่แสดงในแท็บที่มีข้อมูลลูกค้า)
+    const isPrivate = PRIVATE_TABS.indexOf(sh.getName()) !== -1;
+    const sampleRows = Math.min(hIdx + 4, lastRow);
 
-    // 🧮 สูตรในแถว 2-3 (มักเป็นที่ทำ dropdown/สูตรคำนวณ)
+    // 🧮 สูตรใน 4 แถวแรก (มักเป็นที่ทำ dropdown/สูตรคำนวณ)
     //    สูตรไม่ใช่ข้อมูลลูกค้า → แสดงได้ (ช่วยให้เขียนโค้ดให้ตรง)
-    const sampleRows = Math.min(3, lastRow);
     const formulas = sh.getRange(1, 1, sampleRows, lastCol).getFormulas();
     const formulaCells = [];
     for (let r = 0; r < formulas.length; r++) {
@@ -961,23 +951,42 @@ function _sheetStructure() {
           formulaCells.push({
             cell: _cellRef(r + 1, c + 1),
             column: headers[c] || ('col' + (c + 1)),
-            formula: f
+            formula: f.length > 300 ? f.slice(0, 300) + ' …' : f
           });
         }
       }
     }
 
-    // 📋 ตัวอย่างข้อมูล 3 แถว (ไม่แสดงในแท็บที่มีข้อมูลลูกค้า)
-    const isPrivate = PRIVATE_TABS.indexOf(sh.getName()) !== -1;
+    // 🔽 ตรวจ dropdown (data validation) — ดูทั้งแถวหัวตารางและ 3 แถวข้อมูลแรก
+    const validations = [];
+    for (let c = 0; c < lastCol; c++) {
+      let found = null;
+      for (let r = hIdx; r < Math.min(hIdx + 4, lastRow); r++) {
+        try {
+          const v = sh.getRange(r + 1, c + 1).getDataValidation();
+          if (v) {
+            found = {
+              column: headers[c] || ('col' + (c + 1)),
+              type: String(v.getCriteriaType() || ''),
+              values: v.getCriteriaValues() || []
+            };
+            break;
+          }
+        } catch (e) {
+          // ช่องนี้ไม่มี validation
+        }
+      }
+      if (found) validations.push(found);
+    }
+
     const sampleValues = [];
-    if (!isPrivate && lastRow > 1) {
-      const values = sh.getRange(1, 1, sampleRows, lastCol).getValues();
-      for (let r = 1; r < values.length; r++) {
+    if (!isPrivate && lastRow > hIdx + 1) {
+      for (let r = hIdx + 1; r < Math.min(hIdx + 3, lastRow); r++) {
         const row = {};
         for (let c = 0; c < lastCol; c++) {
           const key = headers[c] || ('col' + (c + 1));
           const f = String(formulas[r][c] || '');
-          const v = values[r][c];
+          const v = all[r][c];
           row[key] = f.charAt(0) === '=' ? f : v;
         }
         sampleValues.push(row);
@@ -986,7 +995,7 @@ function _sheetStructure() {
 
     out.push({
       name: sh.getName(),
-      rowCount: lastRow - 1,
+      rowCount: lastRow - hIdx - 1,
       columnCount: lastCol,
       headers: headers,
       validations: validations,
