@@ -30,7 +30,6 @@ const SHEET_PRODUCTS = 'Products';
 const SHEET_CONFIG = 'Config';
 const SHEET_USERS = 'user_id';
 const SHEET_FAVORITES = 'Favorites';
-const SHEET_SALES = 'Sales Tracker';
 
 // 🗂️ หมวดหมู่ — ตรงกับ dropdown ในชีต (แก้ในชีตได้ แต่ถ้าเพิ่มค่าใหม่ต้องแจ้ง)
 const CATEGORY_LIST = ['ข้อสอบ', 'หนังสือ', 'Flashcard', 'อื่นๆ'];
@@ -753,15 +752,13 @@ function _isOpen() {
 
 function _listProducts() {
   const rows = _readSheet(SHEET_PRODUCTS);
-  if (rows.length === 0) return { ok: true, products: [], total: 0, hidden: 0, salesTotal: 0, salesRevenue: 0 };
-
-  // 🧾 ยอดขายจริงจากแท็บ "Sales Tracker" (เจ้าของร้านบันทึกเอง)
-  const tracker = _readSalesTracker();
+  if (rows.length === 0) return { ok: true, products: [], total: 0, hidden: 0, salesTotal: 0 };
 
   const published = [];
   const wip = [];
   // 📊 นับสินค้าที่ถูกซ่อน เพื่อบอกหน้าเว็บว่า "มีของแต่ยังไม่เผยแพร่"
   let hidden = 0;
+  let salesTotal = 0;
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
@@ -799,15 +796,15 @@ function _listProducts() {
       pages: Number(r.pages || 0),
       fileSize: r.file_size,
       rating: Number(r.rating || 0),
-      // 🧾 ยอดขาย: ใช้จากแท็บ "Sales Tracker" ถ้ามีข้อมูล
-      //    ถ้ายังไม่ได้บันทึกใน Sales Tracker เลย → ใช้เลขในคอลัมน์ sales ของ Products ไปก่อน
-      sales: tracker.byProduct[String(r.product_id)] !== undefined
-        ? tracker.byProduct[String(r.product_id)]
-        : Number(r.sales || 0),
+      // 🧾 ยอดขาย: อ่านจากคอลัมน์ sales ในแท็บ Products
+      //    (เจ้าของร้านลิงก์สูตร COUNTIF มาจาก Sales Tracker ไว้แล้ว)
+      sales: Number(r.sales || 0),
       coverColor: r.cover_color || '#1d4ed8',
       status: status,
       createdAt: _fmtDate(r.created_at)
     };
+
+    salesTotal += item.sales;
 
     // 📍 WIP ไปท้ายสุดเสมอ
     if (status === 'WIP') wip.push(item);
@@ -822,8 +819,7 @@ function _listProducts() {
     products: out,
     total: rows.length,
     hidden: hidden,
-    salesTotal: tracker.totalQty,
-    salesRevenue: tracker.totalRevenue
+    salesTotal: salesTotal
   };
 }
 
@@ -1010,170 +1006,6 @@ function _cellRef(row, col) {
     n = Math.floor((n - 1) / 26);
   }
   return letters + row;
-}
-
-/**
- * 🧾 อ่านยอดขายจากแท็บ "Sales Tracker"
- *
- * โครงชีตของเจ้าของร้าน:
- *   แถว 1        = ชื่อรายงาน (Sales Report)
- *   แถว 2        = หัวตาราง (Order No. | Product-ID | Product name | ...)
- *   แถว 3+       = ข้อมูลการขาย
- *   คอลัมน์ N/O   = ตารางสรุปยอดขายต่อสินค้า (Sale count)
- *
- * 🛡 หาแถวหัวตารางอัตโนมัติ (ไม่ต้องต้องอยู่แถว 2 เสมอ)
- * 🛡 ไม่เขียนทับชีตของเจ้าของร้าน — อ่านอย่างเดียว
- *
- * @return {Object} { byProduct: {product_id: จำนวน}, totalQty, totalRevenue, rows }
- */
-function _readSalesTracker() {
-  const empty = { byProduct: {}, totalQty: 0, totalRevenue: 0, rows: 0 };
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_SALES);
-  if (!sh) return empty;
-
-  const lastRow = sh.getLastRow();
-  const lastCol = sh.getLastColumn();
-  if (lastRow < 2) return empty;
-
-  const all = sh.getRange(1, 1, lastRow, lastCol).getValues();
-
-  // 🔎 หาแถวหัวตาราง = แถวแรกที่มีทั้ง "รหัสสินค้า" และ "จำนวน"
-  const norm = function (v) {
-    return String(v || '').toLowerCase().replace(/[\s_\-]/g, '');
-  };
-  const hasProduct = ['productid', 'productcode', 'sku'];
-  const hasQty = ['quantity', 'qty', 'sold', 'count'];
-
-  let headerRow = -1;
-  for (let r = 0; r < Math.min(6, all.length); r++) {
-    const cells = all[r].map(norm);
-    const p = cells.some(function (h) {
-      for (let j = 0; j < hasProduct.length; j++) if (h === hasProduct[j]) return true;
-      return false;
-    });
-    const q = cells.some(function (h) {
-      for (let j = 0; j < hasQty.length; j++) if (h === hasQty[j]) return true;
-      return false;
-    });
-    if (p && q) { headerRow = r; break; }
-  }
-  // ไม่เจอแถวหัวตาราง → ลองใช้แถว 2 (กรณีหัวตารางอยู่แถว 2 พอดี)
-  if (headerRow === -1) headerRow = 1;
-
-  const headers = all[headerRow].map(function (h) { return String(h || '').trim(); });
-
-  // 🔎 หาคอลัมน์ที่ต้องใช้ (ยืดหยุ่น ไม่ต้องตรงชื่อเป๊ะ)
-  const findCol = function (candidates) {
-    for (let i = 0; i < headers.length; i++) {
-      const h = norm(headers[i]);
-      for (let j = 0; j < candidates.length; j++) {
-        if (h === candidates[j]) return i;
-      }
-    }
-    // ลองแบบ "มีคำนี้อยู่" เผื่อมีคำเติม เช่น "Total Sales Count"
-    for (let i = 0; i < headers.length; i++) {
-      const h = norm(headers[i]);
-      for (let j = 0; j < candidates.length; j++) {
-        if (h.indexOf(candidates[j]) !== -1) return i;
-      }
-    }
-    return -1;
-  };
-
-  const cProduct = findCol(['productid', 'productcode', 'sku', 'id']);
-  const cQty = findCol(['quantity', 'qty', 'sold', 'count', 'จำนวน']);
-  const cPrice = findCol(['pricethb', 'price', 'unitprice', 'ราคา']);
-  const cSubtotal = findCol(['subtotal', 'total', 'amount', 'ยอดรวม']);
-
-  const byProduct = {};
-  let totalQty = 0;
-  let totalRevenue = 0;
-  let rows = 0;
-
-  if (cProduct !== -1 && cQty !== -1) {
-    for (let r = headerRow + 1; r < all.length; r++) {
-      const row = all[r];
-      const pid = String(row[cProduct] || '').trim();
-      if (!pid) continue;
-
-      const qty = Number(row[cQty] || 0);
-      if (!qty) continue;
-
-      // 💰 ยอดเงิน: ใช้ Subtotal ถ้ามี ไม่งั้นคูณราคา × จำนวน
-      let revenue = 0;
-      if (cSubtotal !== -1) {
-        revenue = Number(row[cSubtotal] || 0);
-      }
-      if (!revenue && cPrice !== -1) {
-        revenue = Number(row[cPrice] || 0) * qty;
-      }
-
-      byProduct[pid] = (byProduct[pid] || 0) + qty;
-      totalQty += qty;
-      totalRevenue += revenue;
-      rows++;
-    }
-  }
-
-  // 📋 ตารางสรุปยอดขายต่อสินค้า (คอลัมน์ N/O ของเจ้าของร้าน)
-  //    เจ้าของร้านทำสูตร COUNTIF ไว้แล้ว → อ่านค่าที่คำนวณได้เลย
-  const summary = _readSalesSummary(sh, all, headerRow);
-  for (const pid in summary) {
-    // ใช้ค่าจากตารางสรุปถ้ามี (เจ้าของร้านทำสูตรมาให้แล้ว)
-    if (summary[pid] > (byProduct[pid] || 0)) {
-      byProduct[pid] = summary[pid];
-    }
-  }
-
-  return {
-    byProduct: byProduct,
-    totalQty: totalQty,
-    totalRevenue: Math.round(totalRevenue * 100) / 100,
-    rows: rows
-  };
-}
-
-/**
- * 📋 อ่านตารางสรุปยอดขายต่อสินค้า (เจ้าของร้านทำสูตรไว้แล้ว)
- *
- * โครงในชีต:
- *   N = รหัสสินค้า (เช่น FWD-001)   O = ยอดขาย (สูตร COUNTIF)
- *
- * 🔎 หาจากหัวตาราง "Sales Count" แล้วอ่านคอลัมน์ถัดไป
- *
- * @return {Object} { product_id: จำนวน }
- */
-function _readSalesSummary(sh, all, headerRow) {
-  const out = {};
-  const lastCol = all[0] ? all[0].length : 0;
-
-  // 🔎 หาคอลัมน์ที่หัวตารางเป็น "Sales Count"
-  let cLabel = -1;
-  for (let r = 0; r < Math.min(6, all.length); r++) {
-    for (let c = 0; c < lastCol; c++) {
-      const h = String(all[r][c] || '').toLowerCase().replace(/[\s_\-]/g, '');
-      if (h === 'salescount' || h === 'sale count') { cLabel = c; break; }
-    }
-    if (cLabel !== -1) break;
-  }
-  if (cLabel === -1) return out;
-
-  // รหัสสินค้าอยู่คอลัมน์ก่อนหน้า, ยอดขายอยู่คอลัมน์ถัดไป
-  const cId = cLabel - 1;
-  const cCount = cLabel + 1;
-  if (cId < 0 || cCount >= lastCol) return out;
-
-  for (let r = headerRow + 1; r < all.length; r++) {
-    const pid = String(all[r][cId] || '').trim();
-    if (!pid) continue;
-    // ข้ามแถวรวม ("Total Sales" ฯลฯ)
-    if (/total|ยอดรวม/i.test(pid)) continue;
-    const count = Number(all[r][cCount] || 0);
-    if (!count) continue;
-    out[pid] = count;
-  }
-
-  return out;
 }
 
 /**

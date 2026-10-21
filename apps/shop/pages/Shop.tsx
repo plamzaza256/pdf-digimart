@@ -35,16 +35,12 @@ export default function Shop() {
       <h1>ไฟล์ PDF ทั้งหมด</h1>
       <p className="muted">กดดาวเก็บสินค้าที่ถูกใจ แล้วกดสั่งซื้อผ่าน LINE OA</p>
 
-      {/* 🧾 สรุปยอดขายจริง จากแท็บ Sales Tracker */}
+      {/* 🧾 ยอดขายรวม (อ่านจากคอลัมน์ sales ในชีต Products) */}
       {salesSummary.total > 0 && (
-        <div className="grid2 sales-stats">
+        <div className="sales-stats">
           <div className="stat-box">
             <b>{salesSummary.total}</b>
             <span>ไฟล์ที่ขายได้</span>
-          </div>
-          <div className="stat-box">
-            <b>{salesSummary.revenue.toLocaleString('th-TH')} ฿</b>
-            <span>รายได้รวม</span>
           </div>
         </div>
       )}

@@ -33,8 +33,8 @@ interface ShopState {
   loadError: boolean;
   /** จำนวนสินค้าทั้งหมดในชีต (รวมที่ยังไม่เผยแพร่) */
   totalInSheet: number;
-  /** 🧾 ยอดขายรวม + รายได้รวม (จากแท็บ Sales Tracker) */
-  salesSummary: { total: number; revenue: number };
+  /** 🧾 ยอดขายรวม (อ่านจากคอลัมน์ sales ในชีต Products) */
+  salesSummary: { total: number };
   /** ลองโหลดใหม่ */
   reload: () => void;
   /** รหัสสินค้าที่ถูกใจ */
@@ -55,8 +55,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const [loadError, setLoadError] = useState(false);
   // 📊 จำนวนสินค้าทั้งหมดในชีต (รวมที่ยังไม่เผยแพร่) — ใช้บอกว่า "มีของแต่ยังไม่ขึ้นเว็บ"
   const [totalInSheet, setTotalInSheet] = useState(0);
-  // 🧾 ยอดขายรวม + รายได้รวม จากแท็บ Sales Tracker
-  const [salesSummary, setSalesSummary] = useState({ total: 0, revenue: 0 });
+  // 🧾 ยอดขายรวม (อ่านจากคอลัมน์ sales ในชีต Products)
+  const [salesSummary, setSalesSummary] = useState({ total: 0 });
   const [nonce, setNonce] = useState(0);
   // ⭐ เก็บดาวไว้ในเบราว์เซอร์ก่อน (ยังไม่ล็อกอินก็กดได้)
   const [favorites, setFavorites] = useState<string[]>(() =>
@@ -103,10 +103,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
           setFromSheet(true);
           setLoadError(false);
           setTotalInSheet(Number(r.total || 0));
-          setSalesSummary({
-            total: Number(r.salesTotal || 0),
-            revenue: Number(r.salesRevenue || 0),
-          });
+          setSalesSummary({ total: Number(r.salesTotal || 0) });
 
           // 🛡 อย่าแคชผลลัพธ์ที่ว่างเปล่า
           //    ถ้าเซิร์ฟเวอร์ตอบว่าไม่มีสินค้าชั่วคราว (เช่นกำลังแก้ชีต)
