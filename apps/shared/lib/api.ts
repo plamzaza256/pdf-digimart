@@ -229,6 +229,19 @@ export function apiSheetInspect(email: string, token: string) {
   return call('sheet.inspect', { email, token });
 }
 
+/**
+ * 📋 โครงสร้างชีตแบบสาธารณะ (ไม่ต้องล็อกอิน)
+ * คืนแค่ชื่อแท็บ/ชื่อคอลัมน์/dropdown — ไม่มีข้อมูลลูกค้า
+ */
+export async function apiSheetStructure() {
+  const res = await fetch(`${apiUrl()}?action=sheet.structure`);
+  return (await res.json()) as {
+    ok: boolean;
+    error?: string;
+    sheets?: unknown[];
+  };
+}
+
 // ============================ ⭐ สินค้าที่ถูกใจ ============================
 
 /** ดึงดาวถูกใจของผู้ใช้ที่ล็อกอินอยู่ (ผูกกับอีเมล) */

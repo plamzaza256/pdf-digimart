@@ -277,6 +277,13 @@ function doPost(e) {
       return _json(_sheetInspector());
     }
 
+    // --- 📋 โครงสร้างชีตแบบสาธารณะ (ไม่ต้องล็อกอิน) ---
+    //    คืนแค่ "ชื่อแท็บ + ชื่อคอลัมน์ + dropdown" ไม่มีข้อมูลลูกค้า/ยอดขาย
+    //    ใช้เพื่อดูว่าเว็บอ่านชีตถูกช่องไหม โดยไม่ต้องเปิดสิทธิ์ admin
+    if (action === 'sheet.structure') {
+      return _json(_sheetStructure());
+    }
+
     // --- ส่วนแอดมิน (ต้องเป็น session ของเจ้าของร้านที่ยืนยันแล้ว) ---
     const admin = _requireAdmin(body);
     if (!admin.ok) return _json(admin);
@@ -909,6 +916,58 @@ function _sheetInspector() {
   }
 
   return { ok: true, sheets: sheets };
+}
+
+/**
+ * 📋 โครงสร้างชีตแบบสาธารณะ (ไม่ต้องล็อกอิน)
+ *
+ * 🛡 คืนแค่ "ชื่อแท็บ + ชื่อคอลัมน์ + ค่าใน dropdown"
+ *    ไม่มีข้อมูลลูกค้า ไม่มียอดขาย ไม่มีอีเมล → เปิดเผยได้
+ *    ประโยชน์: เช็คว่าเว็บอ่านชีตตรงช่องไหม โดยไม่ต้องเป็นแอดมิน
+ */
+function _sheetStructure() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const out = [];
+
+  for (let i = 0; i < ss.getSheets().length; i++) {
+    const sh = ss.getSheets()[i];
+    const lastRow = sh.getLastRow();
+    const lastCol = sh.getLastColumn();
+    if (lastRow === 0) {
+      out.push({ name: sh.getName(), empty: true, headers: [], validations: [] });
+      continue;
+    }
+
+    const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+      return String(h || '');
+    });
+
+    const validations = [];
+    for (let c = 0; c < lastCol; c++) {
+      try {
+        const v = sh.getRange(2, c + 1).getDataValidation();
+        if (v) {
+          validations.push({
+            column: headers[c] || ('col' + (c + 1)),
+            type: String(v.getCriteriaType() || ''),
+            values: v.getCriteriaValues() || []
+          });
+        }
+      } catch (e) {
+        // ช่องนี้ไม่มี validation
+      }
+    }
+
+    out.push({
+      name: sh.getName(),
+      rowCount: lastRow - 1,
+      columnCount: lastCol,
+      headers: headers,
+      validations: validations
+    });
+  }
+
+  return { ok: true, sheets: out };
 }
 
 /**
