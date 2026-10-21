@@ -30,8 +30,7 @@ export default function ProductDetail() {
           <span className="cover-pdf big">PDF</span>
           <h2>{p.title}</h2>
           <p>
-            {p.category}
-            {pagesLabel(p.pages) ? ' • ' + pagesLabel(p.pages) : ''}
+            {[p.category, pagesLabel(p.pages)].filter(Boolean).join(' ')}
             {p.fileSize ? ' • ' + p.fileSize : ''}
           </p>
           <div className="preview-box">

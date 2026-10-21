@@ -24,12 +24,16 @@ export function formatPrice(price: number): string {
 }
 
 /**
- * 📄 แสดงจำนวนหน้า
- *   80           → "80 หน้า"
- *   "80 ข้อ • 46" → "80 ข้อ • 46" (แสดงตามที่เจ้าของร้านเขียนไว้)
+ * 📄 แสดงจำนวนหน้า — เจ้าของร้านเขียนอย่างไรก็แสดงตามนั้น
+ *
+ *   96              → "96 หน้า"
+ *   "150 ข้อ • 61"  → "150 ข้อ • 61 หน้า"
+ *   "80 หน้า"       → "80 หน้า"   (ถ้ามีคำว่า "หน้า" อยู่แล้ว ไม่เติมซ้ำ)
  */
 export function pagesLabel(pages: number | string | undefined): string {
   if (pages === undefined || pages === null) return '';
-  if (typeof pages === 'number') return pages > 0 ? pages + ' หน้า' : '';
-  return String(pages).trim();
+  const raw = typeof pages === 'number' ? String(pages) : String(pages).trim();
+  if (!raw) return '';
+  if (/หน้า/.test(raw)) return raw;
+  return raw + ' หน้า';
 }

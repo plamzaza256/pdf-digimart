@@ -15,7 +15,7 @@ export default function ProductCard({ p }: { p: Product }) {
         <span className="cover-pdf">PDF</span>
         <span className="cover-title">{p.title.slice(0, 42)}</span>
         <span className="cover-meta">
-          {p.category}{pagesLabel(p.pages) ? ' • ' + pagesLabel(p.pages) : ''}
+          {[p.category, pagesLabel(p.pages)].filter(Boolean).join(' ')}
         </span>
         {isWip && <span className="cover-wip">WIP</span>}
       </Link>
