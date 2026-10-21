@@ -35,6 +35,7 @@ const SHEET_USERS = 'user_id';
 const SHEET_LIBRARY = 'Library';
 const SHEET_FILES = 'Files';
 const SHEET_FAVORITES = 'Favorites';
+const SHEET_SALES = 'Sales Tracker';
 
 // 🗂️ หมวดหมู่ — ตรงกับ dropdown ในชีต (แก้ในชีตได้ แต่ถ้าเพิ่มค่าใหม่ต้องแจ้ง)
 const CATEGORY_LIST = ['ห้อแล้ว', 'หนังสือ', 'Flashcard', 'อื่นๆ'];
@@ -803,7 +804,10 @@ function _isOpen() {
 
 function _listProducts() {
   const rows = _readSheet(SHEET_PRODUCTS);
-  if (rows.length === 0) return { ok: true, products: [], total: 0, hidden: 0 };
+  if (rows.length === 0) return { ok: true, products: [], total: 0, hidden: 0, salesTotal: 0, salesRevenue: 0 };
+
+  // 🧾 ยอดขายจริงจากแท็บ "Sales Tracker" (เจ้าของร้านบันทึกเอง)
+  const tracker = _readSalesTracker();
 
   const out = [];
   // 📊 นับสินค้าที่ถูกซ่อน เพื่อบอกหน้าเว็บว่า "มีของแต่ยังไม่เผยแพร่"
@@ -834,13 +838,24 @@ function _listProducts() {
       pages: Number(r.pages || 0),
       fileSize: r.file_size,
       rating: Number(r.rating || 0),
-      sales: Number(r.sales || 0),
+      // 🧾 ยอดขาย: ใช้จากแท็บ "Sales Tracker" ถ้ามีข้อมูล
+      //    ถ้ายังไม่ได้บันทึกใน Sales Tracker เลย → ใช้เลขในคอลัมน์ sales ของ Products ไปก่อน
+      sales: tracker.byProduct[String(r.product_id)] !== undefined
+        ? tracker.byProduct[String(r.product_id)]
+        : Number(r.sales || 0),
       coverColor: r.cover_color || '#1d4ed8',
       status: String(r.status || 'published'),
       createdAt: _fmtDate(r.created_at)
     });
   }
-  return { ok: true, products: out, total: rows.length, hidden: hidden };
+  return {
+    ok: true,
+    products: out,
+    total: rows.length,
+    hidden: hidden,
+    salesTotal: tracker.totalQty,
+    salesRevenue: tracker.totalRevenue
+  };
 }
 
 function _productDetail(id) {
@@ -1026,6 +1041,91 @@ function _cellRef(row, col) {
     n = Math.floor((n - 1) / 26);
   }
   return letters + row;
+}
+
+/**
+ * 🧾 อ่านยอดขายจากแท็บ "Sales Tracker"
+ *
+ * เจ้าของร้านบันทึกการขายเองในชีต (คอลัมน์ Order No. / Product-ID / Quantity)
+ * ระบบรวมยอดต่อสินค้าให้ แล้วส่งไปให้เว็บโชว์
+ *
+ * 🛡 รองรับชื่อคอลัมน์หลายแบบ เผื่อเจ้าของร้านเปลี่ยนคำในชีต
+ *
+ * @return {Object} { byProduct: {product_id: จำนวน}, totalQty, totalRevenue, rows }
+ */
+function _readSalesTracker() {
+  const empty = { byProduct: {}, totalQty: 0, totalRevenue: 0, rows: 0 };
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_SALES);
+  if (!sh) return empty;
+
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 2) return empty;
+
+  const all = sh.getRange(1, 1, lastRow, lastCol).getValues();
+  const headers = all[0].map(function (h) { return String(h || '').trim(); });
+
+  // 🔎 หาคอลัมน์ที่ต้องใช้ (ยืดหยุ่น ไม่ต้องตรงชื่อเป๊ะ)
+  const findCol = function (candidates) {
+    for (let i = 0; i < headers.length; i++) {
+      const h = headers[i].toLowerCase().replace(/[\s_\-]/g, '');
+      for (let j = 0; j < candidates.length; j++) {
+        if (h === candidates[j]) return i;
+      }
+    }
+    // ลองแบบ "มีคำนี้อยู่" เผื่อมีคำเติม เช่น "Total Sales Count"
+    for (let i = 0; i < headers.length; i++) {
+      const h = headers[i].toLowerCase().replace(/[\s_\-]/g, '');
+      for (let j = 0; j < candidates.length; j++) {
+        if (h.indexOf(candidates[j]) !== -1) return i;
+      }
+    }
+    return -1;
+  };
+
+  const cProduct = findCol(['productid', 'productcode', 'id', 'sku']);
+  const cQty = findCol(['quantity', 'qty', 'sold', 'count', 'จำนวน']);
+  const cPrice = findCol(['pricethb', 'price', 'unitprice', 'ราคา']);
+  const cSubtotal = findCol(['subtotal', 'total', 'amount', 'ยอดรวม']);
+
+  if (cProduct === -1 || cQty === -1) return empty;
+
+  const byProduct = {};
+  let totalQty = 0;
+  let totalRevenue = 0;
+  let rows = 0;
+
+  for (let r = 1; r < all.length; r++) {
+    const row = all[r];
+    const pid = String(row[cProduct] || '').trim();
+    if (!pid) continue;
+
+    const qty = Number(row[cQty] || 0);
+    if (!qty) continue;
+
+    // 💰 ยอดเงิน: ใช้ Subtotal ถ้ามี ไม่งั้นคูณราคา × จำนวน
+    let revenue = 0;
+    if (cSubtotal !== -1) {
+      revenue = Number(row[cSubtotal] || 0);
+    } else if (cPrice !== -1) {
+      revenue = Number(row[cPrice] || 0) * qty;
+    }
+    if (!revenue && cPrice !== -1) {
+      revenue = Number(row[cPrice] || 0) * qty;
+    }
+
+    byProduct[pid] = (byProduct[pid] || 0) + qty;
+    totalQty += qty;
+    totalRevenue += revenue;
+    rows++;
+  }
+
+  return {
+    byProduct: byProduct,
+    totalQty: totalQty,
+    totalRevenue: Math.round(totalRevenue * 100) / 100,
+    rows: rows
+  };
 }
 
 /**

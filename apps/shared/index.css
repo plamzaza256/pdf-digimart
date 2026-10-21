@@ -69,6 +69,12 @@ a { color: inherit; }
 .ok-box { background: #dcfce7; border: 1px solid #86efac; color: #166534; padding: 10px 14px; border-radius: 10px; }
 .pill-mute { background: #f1f5f9; color: #64748b; }
 
+/* 🧾 กล่องสรุปยอดขาย */
+.sales-stats { margin: 16px 0; max-width: 520px; }
+.stat-box { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 4px; box-shadow: var(--shadow); }
+.stat-box b { font-size: 1.6rem; color: var(--brand-dark); }
+.stat-box span { color: var(--muted); font-size: 0.85rem; }
+
 /* 🧪 หน้า "ดูชีต" */
 .sheet-view { margin-top: 18px; }
 .sheet-view h3 { margin: 22px 0 10px; font-size: 1rem; }

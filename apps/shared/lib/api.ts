@@ -194,6 +194,10 @@ export async function apiListProducts() {
     total?: number;
     /** จำนวนที่ถูกซ่อน (status ไม่ใช่ published) */
     hidden?: number;
+    /** ยอดขายรวมจากแท็บ Sales Tracker */
+    salesTotal?: number;
+    /** รายได้รวมจากแท็บ Sales Tracker (บาท) */
+    salesRevenue?: number;
   };
 }
 

@@ -4,7 +4,7 @@ import ProductCard from '../components/ProductCard';
 import { CATEGORIES } from '../data/products';
 
 export default function Shop() {
-  const { products, loading, loadError, reload, totalInSheet } = useShop();
+  const { products, loading, loadError, reload, totalInSheet, salesSummary } = useShop();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<string>('ทั้งหมด');
   const [sort, setSort] = useState('popular');
@@ -34,6 +34,20 @@ export default function Shop() {
     <div className="container page">
       <h1>ไฟล์ PDF ทั้งหมด</h1>
       <p className="muted">กดดาวเก็บสินค้าที่ถูกใจ แล้วกดสั่งซื้อผ่าน LINE OA</p>
+
+      {/* 🧾 สรุปยอดขายจริง จากแท็บ Sales Tracker */}
+      {salesSummary.total > 0 && (
+        <div className="grid2 sales-stats">
+          <div className="stat-box">
+            <b>{salesSummary.total}</b>
+            <span>ไฟล์ที่ขายได้</span>
+          </div>
+          <div className="stat-box">
+            <b>{salesSummary.revenue.toLocaleString('th-TH')} ฿</b>
+            <span>รายได้รวม</span>
+          </div>
+        </div>
+      )}
 
       <div className="toolbar">
         <input
