@@ -7,6 +7,12 @@ interface Validation {
   values: unknown[];
 }
 
+interface FormulaCell {
+  cell: string;
+  column: string;
+  formula: string;
+}
+
 interface SheetInfo {
   name: string;
   empty?: boolean;
@@ -14,6 +20,9 @@ interface SheetInfo {
   columnCount?: number;
   headers?: string[];
   validations?: Validation[];
+  formulas?: FormulaCell[];
+  sampleValues?: Record<string, unknown>[];
+  hasPrivateData?: boolean;
 }
 
 /**
@@ -22,7 +31,9 @@ interface SheetInfo {
  * แสดงว่าเว็บอ่านชีตตรงช่องไหม
  * - ชื่อแท็บทั้งหมด
  * - ชื่อคอลัมน์ของแต่ละแท็บ
- * - 🔽 dropdown ที่ตั้งไว้ (พร้อมค่าที่เลือกได้)
+ * - 🔽 dropdown ที่ตั้งไว้
+ * - 🧮 สูตรที่ใช้ (บอกตำแหน่งด้วย)
+ * - 📋 ตัวอย่างข้อมูล 3 แถว
  *
  * 🛡 ไม่ต้องล็อกอิน — เปิดเผยแค่โครงสร้าง ไม่มีข้อมูลลูกค้า
  */
@@ -63,9 +74,9 @@ export default function SheetStructure() {
     <div className="container page">
       <h1>โครงสร้างชีต</h1>
       <p className="muted">
-        แสดงว่าเว็บอ่านข้อมูลจากชีตตรงช่องไหม — ชื่อแท็บ ชื่อคอลัมน์ และ dropdown
+        แสดงว่าเว็บอ่านข้อมูลจากชีตตรงช่องไหม — ชื่อแท็บ ชื่อคอลัมน์ dropdown และสูตร
         <br />
-        🛡 ไม่แสดงข้อมูลลูกค้า (อีเมล/ยอดขาย) — เห็นแค่โครงสร้าง
+        🛡 ไม่แสดงข้อมูลลูกค้า (อีเมล/โทเคน) — เห็นแค่โครงสร้าง
       </p>
 
       <div className="form-row">
@@ -96,6 +107,7 @@ export default function SheetStructure() {
               <h2 className="sec-title">{current.name}</h2>
               <p className="muted small">
                 {current.rowCount} แถว × {current.columnCount} คอลัมน์
+                {current.hasPrivateData && ' · 🔒 แท็บนี้มีข้อมูลลูกค้า (ไม่แสดงค่า)'}
               </p>
 
               <h3>ชื่อคอลัมน์</h3>
@@ -133,6 +145,60 @@ export default function SheetStructure() {
                                 <span key={j} className="tag">{String(x)}</span>
                               ))}
                             </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {current.formulas && current.formulas.length > 0 && (
+                <>
+                  <h3>🧮 สูตรที่ใช้</h3>
+                  <div className="table-wrap">
+                    <table className="table">
+                      <thead>
+                        <tr><th>เซลล์</th><th>คอลัมน์</th><th>สูตร</th></tr>
+                      </thead>
+                      <tbody>
+                        {current.formulas.map((f, i) => (
+                          <tr key={i}>
+                            <td><code>{f.cell}</code></td>
+                            <td><code>{f.column}</code></td>
+                            <td className="cell-formula"><code>{f.formula}</code></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {current.sampleValues && current.sampleValues.length > 0 && (
+                <>
+                  <h3>📋 ตัวอย่างข้อมูล (3 แถวแรก)</h3>
+                  <div className="table-wrap">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          {(current.headers || []).map((h, i) => (
+                            <th key={i}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {current.sampleValues.map((row, ri) => (
+                          <tr key={ri}>
+                            {(current.headers || []).map((h, ci) => {
+                              const v = row[h];
+                              const isFormula = typeof v === 'string' && v.charAt(0) === '=';
+                              return (
+                                <td key={ci} className={isFormula ? 'cell-formula' : ''}>
+                                  {isFormula ? <code>{String(v)}</code> : String(v ?? '')}
+                                </td>
+                              );
+                            })}
                           </tr>
                         ))}
                       </tbody>

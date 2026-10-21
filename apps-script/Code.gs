@@ -934,6 +934,9 @@ function _sheetStructure() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const out = [];
 
+  // 🛡 แท็บที่มีข้อมูลลูกค้า → ไม่แสดงค่า แสดงแค่โครงสร้าง
+  const PRIVATE_TABS = ['user_id', 'Favorites', 'Library'];
+
   for (let i = 0; i < ss.getSheets().length; i++) {
     const sh = ss.getSheets()[i];
     const lastRow = sh.getLastRow();
@@ -963,16 +966,66 @@ function _sheetStructure() {
       }
     }
 
+    // 🧮 สูตรในแถว 2-3 (มักเป็นที่ทำ dropdown/สูตรคำนวณ)
+    //    สูตรไม่ใช่ข้อมูลลูกค้า → แสดงได้ (ช่วยให้เขียนโค้ดให้ตรง)
+    const sampleRows = Math.min(3, lastRow);
+    const formulas = sh.getRange(1, 1, sampleRows, lastCol).getFormulas();
+    const formulaCells = [];
+    for (let r = 0; r < formulas.length; r++) {
+      for (let c = 0; c < lastCol; c++) {
+        const f = String(formulas[r][c] || '');
+        if (f.charAt(0) === '=') {
+          formulaCells.push({
+            cell: _cellRef(r + 1, c + 1),
+            column: headers[c] || ('col' + (c + 1)),
+            formula: f
+          });
+        }
+      }
+    }
+
+    // 📋 ตัวอย่างข้อมูล 3 แถว (ไม่แสดงในแท็บที่มีข้อมูลลูกค้า)
+    const isPrivate = PRIVATE_TABS.indexOf(sh.getName()) !== -1;
+    const sampleValues = [];
+    if (!isPrivate && lastRow > 1) {
+      const values = sh.getRange(1, 1, sampleRows, lastCol).getValues();
+      for (let r = 1; r < values.length; r++) {
+        const row = {};
+        for (let c = 0; c < lastCol; c++) {
+          const key = headers[c] || ('col' + (c + 1));
+          const f = String(formulas[r][c] || '');
+          const v = values[r][c];
+          row[key] = f.charAt(0) === '=' ? f : v;
+        }
+        sampleValues.push(row);
+      }
+    }
+
     out.push({
       name: sh.getName(),
       rowCount: lastRow - 1,
       columnCount: lastCol,
       headers: headers,
-      validations: validations
+      validations: validations,
+      formulas: formulaCells,
+      sampleValues: sampleValues,
+      hasPrivateData: isPrivate
     });
   }
 
   return { ok: true, sheets: out };
+}
+
+/** ชื่อเซลล์แบบ A1 (ใช้บอกตำแหน่งสูตร) */
+function _cellRef(row, col) {
+  let letters = '';
+  let n = col;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letters = String.fromCharCode(65 + rem) + letters;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letters + row;
 }
 
 /**
