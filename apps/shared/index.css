@@ -69,6 +69,11 @@ a { color: inherit; }
 .ok-box { background: #dcfce7; border: 1px solid #86efac; color: #166534; padding: 10px 14px; border-radius: 10px; }
 .pill-mute { background: #f1f5f9; color: #64748b; }
 
+/* 🏷️ สินค้าสถานะ WIP */
+.pill-wip { background: #fef3c7; color: #92400e; }
+.card-wip { opacity: .92; border-style: dashed; }
+.cover-wip { position: absolute; top: 10px; right: 10px; background: #f59e0b; color: #fff; font-size: .7rem; font-weight: 800; padding: 3px 9px; border-radius: 999px; }
+
 /* 🧾 กล่องสรุปยอดขาย */
 .sales-stats { margin: 16px 0; max-width: 520px; }
 .stat-box { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 4px; box-shadow: var(--shadow); }

@@ -6,7 +6,7 @@ import type { Product } from '@shared/types';
  * ⚠️ ถ้าเจ้าของร้านเพิ่มหมวดหมู่ใหม่ในชีต
  *    ให้เพิ่มที่นี่ด้วย (ชื่อต้องตรงเป๊ะ)
  */
-export const CATEGORIES = ['ทั้งหมด', 'ห้อแล้ว', 'หนังสือ', 'Flashcard', 'อื่นๆ'] as const;
+export const CATEGORIES = ['ทั้งหมด', 'ข้อสอบ', 'หนังสือ', 'Flashcard', 'อื่นๆ'] as const;
 
 /**
  * 📦 ข้อมูลสินค้าตัวอย่าง — ไม่ได้ใช้แล้ว

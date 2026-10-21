@@ -15,8 +15,13 @@ export interface Product {
   sales: number;
   coverColor: string;
   tags: string[];
-  /** สถานะการเผยแพร่ — เว็บร้านแสดงเฉพาะ published */
-  status?: 'published' | 'draft' | 'archived';
+  /**
+   * สถานะการเผยแพร่ (จาก dropdown ในชีต)
+   *   published  → แสดงบนเว็บ
+   *   WIP        → แสดงบนเว็บ แต่ไปท้ายสุด + ป้าย "WIP"
+   *   Paused / Discontinued → ไม่แสดง
+   */
+  status?: 'published' | 'WIP' | 'Paused' | 'Discontinued';
   createdAt: string;
 }
 
@@ -31,23 +36,3 @@ export interface User {
   createdAt: string;
 }
 
-export interface CartLine {
-  productId: string;
-  qty: number;
-}
-
-export interface OrderItem {
-  productId: string;
-  title: string;
-  price: number;
-  qty: number;
-}
-
-export interface Order {
-  id: string;
-  email: string;
-  items: OrderItem[];
-  total: number;
-  status: string;
-  createdAt: string;
-}

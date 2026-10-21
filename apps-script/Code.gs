@@ -27,18 +27,13 @@ const ADMIN_EMAILS = ['16052551k@gmail.com', '16052551mk@gmail.com'];
 const ADMIN_NAME = 'เจ้าของร้าน';
 
 const SHEET_PRODUCTS = 'Products';
-const SHEET_ORDERS = 'Orders';
-const SHEET_ORDER_ITEMS = 'OrderItems';
-const SHEET_PAYMENTS = 'PaymentSubmissions';
 const SHEET_CONFIG = 'Config';
 const SHEET_USERS = 'user_id';
-const SHEET_LIBRARY = 'Library';
-const SHEET_FILES = 'Files';
 const SHEET_FAVORITES = 'Favorites';
 const SHEET_SALES = 'Sales Tracker';
 
 // 🗂️ หมวดหมู่ — ตรงกับ dropdown ในชีต (แก้ในชีตได้ แต่ถ้าเพิ่มค่าใหม่ต้องแจ้ง)
-const CATEGORY_LIST = ['ห้อแล้ว', 'หนังสือ', 'Flashcard', 'อื่นๆ'];
+const CATEGORY_LIST = ['ข้อสอบ', 'หนังสือ', 'Flashcard', 'อื่นๆ'];
 
 /**
  * 📊 สถานะสินค้า — ตรงกับ dropdown ในชีต
@@ -85,20 +80,8 @@ function setupSheets() {
     'rating', 'sales', 'cover_color', 'status', 'created_at'
   ]);
 
-  _ensureSheet(SHEET_ORDERS, [
-    'order_id', 'created_at', 'customer_name', 'customer_email',
-    'identity_provider', 'token_hash', 'status', 'total_satang',
-    'payment_ref', 'verified_by', 'verified_at', 'admin_note'
-  ]);
 
-  _ensureSheet(SHEET_ORDER_ITEMS, [
-    'item_id', 'order_id', 'product_id', 'title_snapshot', 'price_satang', 'qty'
-  ]);
 
-  _ensureSheet(SHEET_PAYMENTS, [
-    'submission_id', 'order_id', 'submitted_at', 'amount_claimed_satang',
-    'payer_name', 'payer_note', 'review_result', 'reviewed_by', 'reviewed_at'
-  ]);
 
   _ensureSheet(SHEET_CONFIG, ['key', 'value']);
   _ensureSheet(SHEET_USERS, [
@@ -106,14 +89,6 @@ function setupSheets() {
   ]);
   // เพิ่มคอลัมน์ที่ภายหลังต้องใช้ ให้แท็บเก่าที่สร้างไว้แล้วอัปเดตอัตโนมัติ
   _ensureColumns(SHEET_USERS, ['token', 'login_method']);
-  _ensureColumns(SHEET_ORDERS, ['User_id', 'order_token', 'library_granted']);
-  _ensureSheet(SHEET_LIBRARY, [
-    'grant_id', 'User_id', 'email', 'product_id', 'file_code',
-    'order_id', 'granted_at', 'granted_by', 'active'
-  ]);
-  _ensureSheet(SHEET_FILES, [
-    'product_id', 'file_code', 'file_name', 'drive_url', 'file_size', 'updated_at'
-  ]);
   // ⭐ แท็บสินค้าที่ถูกใจ — ผูกกับอีเมลผู้ใช้
   //    ล็อกอินใหม่/เปลี่ยนเครื่อง → ดาวยังอยู่
   _ensureSheet(SHEET_FAVORITES, [
@@ -231,11 +206,6 @@ function doGet(e) {
     if (action === 'config') return _json(_getConfig());
     if (action === 'public.config') return _json(getPublicConfig());
 
-    if (action === 'order.list') {
-      // 🛡 GET ที่ต้องล็อกอิน ต้องใช้ POST แทน (token ไม่ควรอยู่ใน URL)
-      return _json({ ok: false, error: 'ใช้ POST action=order.list แทน' });
-    }
-
     return _json({ ok: false, error: 'ไม่รู้จักคำสั่ง: ' + action });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
@@ -248,22 +218,11 @@ function doPost(e) {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     const action = body.action || '';
 
-    if (action === 'order.create') {
-      if (!_isOpen()) return _json({ ok: false, error: 'ร้านยังไม่เปิดรับคำสั่งซื้อ' });
-      return _json(_createOrder(body));
-    }
-
-    if (action === 'payment.submit') return _json(_submitPayment(body));
-
     // --- ระบบสมาชิก: เข้าสู่ระบบผ่าน Firebase (ทุกคนเรียกได้) ---
     if (action === 'user.firebase') return _json(_firebaseLogin(body));
     if (action === 'user.session') return _json(_session(body));
 
     if (action === 'user.check') return _json(_checkUser(body.email));
-
-    // --- ฝั่งลูกค้า (ต้องล็อกอินด้วยอีเมล + token) ---
-    if (action === 'library.list') return _json(_myLibrary(body));
-    if (action === 'order.mine') return _json(_myOrders(body));
 
     // --- ⭐ สินค้าที่ถูกใจ (ผูกกับอีเมลผู้ใช้) ---
     if (action === 'favorite.list') return _json(_myFavorites(body));
@@ -304,16 +263,6 @@ function doPost(e) {
     if (action === 'server.url.set') {
       return _json(_setServerUrl(body.url));
     }
-    if (action === 'order.verify') {
-      return _json(_verifyOrder(body.order_id, true, admin.email));
-    }
-    if (action === 'order.reject') {
-      return _json(_verifyOrder(body.order_id, false, admin.email));
-    }
-    if (action === 'library.revoke') {
-      return _json(_revokeGrant(body.grant_id));
-    }
-    if (action === 'order.list') return _json(_listOrders());
 
     return _json({ ok: false, error: 'ไม่รู้จักคำสั่ง: ' + action });
   } catch (err) {
@@ -809,17 +758,29 @@ function _listProducts() {
   // 🧾 ยอดขายจริงจากแท็บ "Sales Tracker" (เจ้าของร้านบันทึกเอง)
   const tracker = _readSalesTracker();
 
-  const out = [];
+  const published = [];
+  const wip = [];
   // 📊 นับสินค้าที่ถูกซ่อน เพื่อบอกหน้าเว็บว่า "มีของแต่ยังไม่เผยแพร่"
   let hidden = 0;
+
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
-    // ⛔ กรองที่ฝั่งเซิร์ฟเวอร์: คนทั่วไปเห็นเฉพาะสินค้าที่ published เท่านั้น
-    if (String(r.status || '') !== 'published') {
+    const status = String(r.status || 'published');
+
+    // 📊 สถานะจาก dropdown ในชีต (เจ้าของร้านตั้งเอง)
+    //    Published        → แสดง
+    //    WIP              → แสดง แต่ไปท้ายสุด + ป้าย "WIP"
+    //    Paused/Discontinued → ซ่อน
+    if (status === 'Paused' || status === 'Discontinued') {
       hidden++;
       continue;
     }
-    out.push({
+    if (status !== 'published' && status !== 'WIP') {
+      hidden++;
+      continue;
+    }
+
+    const item = {
       id: r.product_id,
       title: r.title,
       description: r.description,
@@ -844,10 +805,18 @@ function _listProducts() {
         ? tracker.byProduct[String(r.product_id)]
         : Number(r.sales || 0),
       coverColor: r.cover_color || '#1d4ed8',
-      status: String(r.status || 'published'),
+      status: status,
       createdAt: _fmtDate(r.created_at)
-    });
+    };
+
+    // 📍 WIP ไปท้ายสุดเสมอ
+    if (status === 'WIP') wip.push(item);
+    else published.push(item);
   }
+
+  // ⭐ WIP ต้องอยู่ท้ายสุดเสมอ (ไม่ว่าจะเรียงตามอะไร)
+  const out = published.concat(wip);
+
   return {
     ok: true,
     products: out,
@@ -1046,10 +1015,14 @@ function _cellRef(row, col) {
 /**
  * 🧾 อ่านยอดขายจากแท็บ "Sales Tracker"
  *
- * เจ้าของร้านบันทึกการขายเองในชีต (คอลัมน์ Order No. / Product-ID / Quantity)
- * ระบบรวมยอดต่อสินค้าให้ แล้วส่งไปให้เว็บโชว์
+ * โครงชีตของเจ้าของร้าน:
+ *   แถว 1        = ชื่อรายงาน (Sales Report)
+ *   แถว 2        = หัวตาราง (Order No. | Product-ID | Product name | ...)
+ *   แถว 3+       = ข้อมูลการขาย
+ *   คอลัมน์ N/O   = ตารางสรุปยอดขายต่อสินค้า (Sale count)
  *
- * 🛡 รองรับชื่อคอลัมน์หลายแบบ เผื่อเจ้าของร้านเปลี่ยนคำในชีต
+ * 🛡 หาแถวหัวตารางอัตโนมัติ (ไม่ต้องต้องอยู่แถว 2 เสมอ)
+ * 🛡 ไม่เขียนทับชีตของเจ้าของร้าน — อ่านอย่างเดียว
  *
  * @return {Object} { byProduct: {product_id: จำนวน}, totalQty, totalRevenue, rows }
  */
@@ -1063,19 +1036,43 @@ function _readSalesTracker() {
   if (lastRow < 2) return empty;
 
   const all = sh.getRange(1, 1, lastRow, lastCol).getValues();
-  const headers = all[0].map(function (h) { return String(h || '').trim(); });
+
+  // 🔎 หาแถวหัวตาราง = แถวแรกที่มีทั้ง "รหัสสินค้า" และ "จำนวน"
+  const norm = function (v) {
+    return String(v || '').toLowerCase().replace(/[\s_\-]/g, '');
+  };
+  const hasProduct = ['productid', 'productcode', 'sku'];
+  const hasQty = ['quantity', 'qty', 'sold', 'count'];
+
+  let headerRow = -1;
+  for (let r = 0; r < Math.min(6, all.length); r++) {
+    const cells = all[r].map(norm);
+    const p = cells.some(function (h) {
+      for (let j = 0; j < hasProduct.length; j++) if (h === hasProduct[j]) return true;
+      return false;
+    });
+    const q = cells.some(function (h) {
+      for (let j = 0; j < hasQty.length; j++) if (h === hasQty[j]) return true;
+      return false;
+    });
+    if (p && q) { headerRow = r; break; }
+  }
+  // ไม่เจอแถวหัวตาราง → ลองใช้แถว 2 (กรณีหัวตารางอยู่แถว 2 พอดี)
+  if (headerRow === -1) headerRow = 1;
+
+  const headers = all[headerRow].map(function (h) { return String(h || '').trim(); });
 
   // 🔎 หาคอลัมน์ที่ต้องใช้ (ยืดหยุ่น ไม่ต้องตรงชื่อเป๊ะ)
   const findCol = function (candidates) {
     for (let i = 0; i < headers.length; i++) {
-      const h = headers[i].toLowerCase().replace(/[\s_\-]/g, '');
+      const h = norm(headers[i]);
       for (let j = 0; j < candidates.length; j++) {
         if (h === candidates[j]) return i;
       }
     }
     // ลองแบบ "มีคำนี้อยู่" เผื่อมีคำเติม เช่น "Total Sales Count"
     for (let i = 0; i < headers.length; i++) {
-      const h = headers[i].toLowerCase().replace(/[\s_\-]/g, '');
+      const h = norm(headers[i]);
       for (let j = 0; j < candidates.length; j++) {
         if (h.indexOf(candidates[j]) !== -1) return i;
       }
@@ -1083,41 +1080,49 @@ function _readSalesTracker() {
     return -1;
   };
 
-  const cProduct = findCol(['productid', 'productcode', 'id', 'sku']);
+  const cProduct = findCol(['productid', 'productcode', 'sku', 'id']);
   const cQty = findCol(['quantity', 'qty', 'sold', 'count', 'จำนวน']);
   const cPrice = findCol(['pricethb', 'price', 'unitprice', 'ราคา']);
   const cSubtotal = findCol(['subtotal', 'total', 'amount', 'ยอดรวม']);
-
-  if (cProduct === -1 || cQty === -1) return empty;
 
   const byProduct = {};
   let totalQty = 0;
   let totalRevenue = 0;
   let rows = 0;
 
-  for (let r = 1; r < all.length; r++) {
-    const row = all[r];
-    const pid = String(row[cProduct] || '').trim();
-    if (!pid) continue;
+  if (cProduct !== -1 && cQty !== -1) {
+    for (let r = headerRow + 1; r < all.length; r++) {
+      const row = all[r];
+      const pid = String(row[cProduct] || '').trim();
+      if (!pid) continue;
 
-    const qty = Number(row[cQty] || 0);
-    if (!qty) continue;
+      const qty = Number(row[cQty] || 0);
+      if (!qty) continue;
 
-    // 💰 ยอดเงิน: ใช้ Subtotal ถ้ามี ไม่งั้นคูณราคา × จำนวน
-    let revenue = 0;
-    if (cSubtotal !== -1) {
-      revenue = Number(row[cSubtotal] || 0);
-    } else if (cPrice !== -1) {
-      revenue = Number(row[cPrice] || 0) * qty;
+      // 💰 ยอดเงิน: ใช้ Subtotal ถ้ามี ไม่งั้นคูณราคา × จำนวน
+      let revenue = 0;
+      if (cSubtotal !== -1) {
+        revenue = Number(row[cSubtotal] || 0);
+      }
+      if (!revenue && cPrice !== -1) {
+        revenue = Number(row[cPrice] || 0) * qty;
+      }
+
+      byProduct[pid] = (byProduct[pid] || 0) + qty;
+      totalQty += qty;
+      totalRevenue += revenue;
+      rows++;
     }
-    if (!revenue && cPrice !== -1) {
-      revenue = Number(row[cPrice] || 0) * qty;
-    }
+  }
 
-    byProduct[pid] = (byProduct[pid] || 0) + qty;
-    totalQty += qty;
-    totalRevenue += revenue;
-    rows++;
+  // 📋 ตารางสรุปยอดขายต่อสินค้า (คอลัมน์ N/O ของเจ้าของร้าน)
+  //    เจ้าของร้านทำสูตร COUNTIF ไว้แล้ว → อ่านค่าที่คำนวณได้เลย
+  const summary = _readSalesSummary(sh, all, headerRow);
+  for (const pid in summary) {
+    // ใช้ค่าจากตารางสรุปถ้ามี (เจ้าของร้านทำสูตรมาให้แล้ว)
+    if (summary[pid] > (byProduct[pid] || 0)) {
+      byProduct[pid] = summary[pid];
+    }
   }
 
   return {
@@ -1126,6 +1131,49 @@ function _readSalesTracker() {
     totalRevenue: Math.round(totalRevenue * 100) / 100,
     rows: rows
   };
+}
+
+/**
+ * 📋 อ่านตารางสรุปยอดขายต่อสินค้า (เจ้าของร้านทำสูตรไว้แล้ว)
+ *
+ * โครงในชีต:
+ *   N = รหัสสินค้า (เช่น FWD-001)   O = ยอดขาย (สูตร COUNTIF)
+ *
+ * 🔎 หาจากหัวตาราง "Sales Count" แล้วอ่านคอลัมน์ถัดไป
+ *
+ * @return {Object} { product_id: จำนวน }
+ */
+function _readSalesSummary(sh, all, headerRow) {
+  const out = {};
+  const lastCol = all[0] ? all[0].length : 0;
+
+  // 🔎 หาคอลัมน์ที่หัวตารางเป็น "Sales Count"
+  let cLabel = -1;
+  for (let r = 0; r < Math.min(6, all.length); r++) {
+    for (let c = 0; c < lastCol; c++) {
+      const h = String(all[r][c] || '').toLowerCase().replace(/[\s_\-]/g, '');
+      if (h === 'salescount' || h === 'sale count') { cLabel = c; break; }
+    }
+    if (cLabel !== -1) break;
+  }
+  if (cLabel === -1) return out;
+
+  // รหัสสินค้าอยู่คอลัมน์ก่อนหน้า, ยอดขายอยู่คอลัมน์ถัดไป
+  const cId = cLabel - 1;
+  const cCount = cLabel + 1;
+  if (cId < 0 || cCount >= lastCol) return out;
+
+  for (let r = headerRow + 1; r < all.length; r++) {
+    const pid = String(all[r][cId] || '').trim();
+    if (!pid) continue;
+    // ข้ามแถวรวม ("Total Sales" ฯลฯ)
+    if (/total|ยอดรวม/i.test(pid)) continue;
+    const count = Number(all[r][cCount] || 0);
+    if (!count) continue;
+    out[pid] = count;
+  }
+
+  return out;
 }
 
 /**
@@ -1386,208 +1434,6 @@ function _setConfig(key, value) {
   }
 }
 
-function _listOrders() {
-  const orders = _readSheet(SHEET_ORDERS);
-  const items = _readSheet(SHEET_ORDER_ITEMS);
-  const out = [];
-
-  for (let i = 0; i < orders.length; i++) {
-    const o = orders[i];
-    const lines = items.filter(function (x) { return x.order_id === o.order_id; });
-    out.push({
-      orderId: o.order_id,
-      createdAt: o.created_at,
-      customerName: o.customer_name,
-      customerEmail: o.customer_email,
-      userId: o.User_id,
-      status: o.status,
-      total: Math.round(Number(o.total_satang || 0) / 100),
-      paymentRef: o.payment_ref,
-      libraryGranted: String(o.library_granted) === 'TRUE',
-      items: lines.map(function (l) {
-        return {
-          productId: l.product_id,
-          title: l.title_snapshot,
-          price: Math.round(Number(l.price_satang || 0) / 100),
-          qty: Number(l.qty || 0)
-        };
-      })
-    });
-  }
-  return { ok: true, orders: out };
-}
-
-/**
- * คลังไฟล์ของสมาชิก
- * 🔒 ต้องยืนยันตัวตนด้วยอีเมล + token เสมอ (ห้ามค้นด้วย UID หรืออีเมลล้วน)
- * คืนลิงก์ไฟล์เฉพาะแถวที่ active = TRUE เท่านั้น
- */
-function _myLibrary(body) {
-  const sess = _session(body);
-  if (!sess.ok) return sess;
-
-  const rows = _readSheet(SHEET_LIBRARY).filter(function (r) {
-    return String(r.email || '').toLowerCase() === sess.user.email.toLowerCase();
-  });
-
-  const files = _readSheet(SHEET_FILES);
-  const items = rows.map(function (r) {
-    const f = files.filter(function (x) {
-      return String(x.product_id) === String(r.product_id);
-    })[0];
-    const active = String(r.active).toUpperCase() === 'TRUE';
-    return {
-      grantId: r.grant_id,
-      userId: r.User_id,
-      productId: r.product_id,
-      title: f ? String(f.file_name || '') : String(r.product_id),
-      fileCode: r.file_code,
-      fileSize: f ? String(f.file_size || '') : '',
-      orderId: r.order_id,
-      grantedAt: _fmtDate(r.granted_at),
-      active: active,
-      // 🛡 คืนลิงก์จริงเฉพาะตอนยังมีสิทธิ์เท่านั้น
-      downloadUrl: active && f ? String(f.drive_url || '') : ''
-    };
-  });
-
-  return { ok: true, user: sess.user, items: items };
-}
-
-/**
- * ให้สิทธิ์ดาวน์โหลดไฟล์ทุกชิ้นในออเดอร์
- * เรียกอัตโนมัติเมื่อแอดมินกดยืนยันยอดแล้ว
- */
-function _grantLibrary(orderId, adminEmail) {
-  const order = _readSheet(SHEET_ORDERS).filter(function (o) {
-    return String(o.order_id) === String(orderId);
-  })[0];
-  if (!order) return 0;
-
-  const lines = _readSheet(SHEET_ORDER_ITEMS).filter(function (x) {
-    return String(x.order_id) === String(orderId);
-  });
-  if (lines.length === 0) return 0;
-
-  const existing = _readSheet(SHEET_LIBRARY);
-  const today = _today();
-  let added = 0;
-
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i];
-    // กันให้สิทธิ์ซ้ำแถวเดิม
-    const dup = existing.some(function (r) {
-      return String(r.order_id) === String(orderId) &&
-        String(r.product_id) === String(l.product_id);
-    });
-    if (dup) continue;
-
-    // ดึง file_code จากแท็บ Files
-    const f = _readSheet(SHEET_FILES).filter(function (x) {
-      return String(x.product_id) === String(l.product_id);
-    })[0];
-
-    _appendRow(SHEET_LIBRARY, [
-      Utilities.getUuid(),
-      order.User_id,
-      order.customer_email,
-      l.product_id,
-      f ? String(f.file_code || '') : '',
-      orderId,
-      today,
-      adminEmail || '',
-      'TRUE'
-    ]);
-    added++;
-  }
-
-  // ทำเครื่องหมายว่าออเดอร์นี้แจกสิทธิ์แล้ว
-  _markOrder(orderId, 'library_granted', true);
-  return added;
-}
-
-/**
- * ถอดสิทธิ์ดาวน์โหลด (แอดมินกดได้จากหน้าเว็บ)
- * แก้คอลัมน์ active เป็น FALSE → ลูกค้าเห็นรายการอยู่แต่กดโหลดไม่ได้
- */
-function _revokeGrant(grantId) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_LIBRARY);
-    const headers = _header(SHEET_LIBRARY);
-    const data = sh.getDataRange().getValues();
-    const cId = headers.indexOf('grant_id');
-    const cActive = headers.indexOf('active');
-
-    if (cId === -1 || cActive === -1) {
-      return { ok: false, error: 'แท็บ Library ยังไม่มีคอลัมน์ที่ต้องใช้' };
-    }
-
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][cId]) === String(grantId)) {
-        sh.getRange(i + 1, cActive + 1).setValue('FALSE');
-        return { ok: true, message: 'ถอดสิทธิ์แล้ว' };
-      }
-    }
-    return { ok: false, error: 'ไม่พบรายการที่ต้องการถอดสิทธิ์' };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/** เขียนค่าลงคอลัมน์ของแถวออเดอร์ โดยเลือกคอลัมน์จากชื่อ */
-function _markOrder(orderId, columnName, value) {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ORDERS);
-  const headers = _header(SHEET_ORDERS);
-  const c = headers.indexOf(columnName);
-  if (c === -1) return;
-  const data = sh.getDataRange().getValues();
-  const cId = headers.indexOf('order_id');
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][cId]) === String(orderId)) {
-      sh.getRange(i + 1, c + 1).setValue(value);
-      return;
-    }
-  }
-}
-
-/** ออเดอร์ของสมาชิกที่ล็อกอินอยู่ (ดูสถานะ "รอโอน/รอตรวจสอบ/สำเร็จ") */
-function _myOrders(body) {
-  const sess = _session(body);
-  if (!sess.ok) return sess;
-
-  const email = sess.user.email.toLowerCase();
-  const items = _readSheet(SHEET_ORDER_ITEMS);
-
-  const orders = _readSheet(SHEET_ORDERS)
-    .filter(function (o) {
-      return String(o.customer_email || '').toLowerCase() === email;
-    })
-    .map(function (o) {
-      const lines = items.filter(function (x) {
-        return String(x.order_id) === String(o.order_id);
-      });
-      return {
-        orderId: o.order_id,
-        createdAt: _fmtDate(o.created_at),
-        status: String(o.status || ''),
-        total: Math.round(Number(o.total_satang || 0) / 100),
-        libraryGranted: String(o.library_granted) === 'TRUE',
-        items: lines.map(function (l) {
-          return {
-            productId: l.product_id,
-            title: l.title_snapshot,
-            price: Math.round(Number(l.price_satang || 0) / 100),
-            qty: Number(l.qty || 0)
-          };
-        })
-      };
-    });
-
-  return { ok: true, orders: orders };
-}
-
 function _getConfig(key) {
   const rows = _readSheet(SHEET_CONFIG);
   for (let i = 0; i < rows.length; i++) {
@@ -1597,129 +1443,6 @@ function _getConfig(key) {
 }
 
 // ============================ เขียนข้อมูล ============================
-
-/**
- * สร้างคำสั่งซื้อ
- * ⚠️ ราคาคิดจากชีตเท่านั้น ไม่เชื่อราคาที่ส่งมาจากเบราว์เซอร์
- */
-function _createOrder(body) {
-  // 🔒 ต้องล็อกอินจริงถึงจะสั่งซื้อได้ (ยืนยันด้วยอีเมล + token)
-  const sess = _session(body);
-  if (!sess.ok) return sess;
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    const items = Array.isArray(body.items) ? body.items : [];
-    if (items.length === 0) return { ok: false, error: 'ตะกร้าว่างเปล่า' };
-
-    const email = sess.user.email;
-    const name = String(body.name || sess.user.name || 'ลูกค้า').trim() || 'ลูกค้า';
-
-    const products = _listProducts().products;
-    const lines = [];
-    let totalSatang = 0;
-
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      const p = products.filter(function (x) { return x.id === it.productId; })[0];
-      if (!p) return { ok: false, error: 'ไม่พบสินค้า: ' + it.productId };
-
-      const qty = Math.max(1, Math.min(99, Number(it.qty || 1)));
-      // 🛡 คิดราคาจากชีตเท่านั้น ยอมรับราคาจากเบราว์เซอร์ไม่ได้
-      const priceSatang = Math.round(p.price * 100);
-      totalSatang += priceSatang * qty;
-      lines.push({
-        productId: p.id,
-        title: p.title,      // snapshot กันชื่อเปลี่ยนทีหลัง
-        priceSatang: priceSatang,
-        qty: qty
-      });
-    }
-
-    const orderId = _newId('ORD');
-    const orderToken = _newToken();
-    const now = new Date();
-
-    _appendRow(SHEET_ORDERS, [
-      orderId, now, name, email, 'password', _hash(orderToken),
-      ORDER_STATUS.NEW, totalSatang, '', '', '', '',
-      sess.user.user_id, '', ''       // User_id, order_token, library_granted
-    ]);
-
-    for (let i = 0; i < lines.length; i++) {
-      const l = lines[i];
-      _appendRow(SHEET_ORDER_ITEMS, [
-        Utilities.getUuid(), orderId, l.productId, l.title, l.priceSatang, l.qty
-      ]);
-    }
-
-    return {
-      ok: true,
-      message: 'สร้างคำสั่งซื้อแล้ว กรุณาโอนเงินตามยอดที่แสดง',
-      order_id: orderId,
-      total: Math.round(totalSatang / 100)
-    };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/**
- * ลูกค้าแจ้งว่าโอนเงินแล้ว
- * 🔒 ต้องล็อกอินด้วยอีเมลเดียวกับที่สั่งซื้อ ไม่งั้นคนอื่นแจ้งแทนได้
- */
-function _submitPayment(body) {
-  const sess = _session(body);
-  if (!sess.ok) return sess;
-
-  const orderId = String(body.order_id || '');
-  const ref = String(body.payment_ref || '').trim();
-  if (!orderId) return { ok: false, error: 'ไม่พบหมายเลขคำสั่งซื้อ' };
-  if (!ref) return { ok: false, error: 'กรุณากรอกเลขอ้างอิงการโอน' };
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ORDERS);
-    const data = sh.getDataRange().getValues();
-    const headers = _header(SHEET_ORDERS);
-    const cId = headers.indexOf('order_id');
-    const cRef = headers.indexOf('payment_ref');
-
-    let rowIdx = -1;
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][cId]) === orderId) { rowIdx = i + 1; break; }
-    }
-    if (rowIdx === -1) return { ok: false, error: 'ไม่พบคำสั่งซื้อ' };
-
-    // 🛡 ต้องเป็นออเดอร์ของคนที่ล็อกอินอยู่เท่านั้น
-    const cEmail = headers.indexOf('customer_email');
-    if (String(data[rowIdx - 1][cEmail] || '').toLowerCase() !==
-        sess.user.email.toLowerCase()) {
-      return { ok: false, error: 'ไม่พบคำสั่งซื้อของคุณ' };
-    }
-
-    // แจ้งแล้วต้องยังรอโอนอยู่ ป้องกันส่งซ้ำหลังจ่ายแล้ว
-    const cStatus = headers.indexOf('status');
-    if (String(data[rowIdx - 1][cStatus]) !== ORDER_STATUS.NEW) {
-      return { ok: false, error: 'คำสั่งซื้อนี้ถูกดำเนินการแล้ว' };
-    }
-
-    sh.getRange(rowIdx, cRef + 1).setValue(ref);
-
-    _appendRow(SHEET_PAYMENTS, [
-      Utilities.getUuid(), orderId, new Date(),
-      Math.round(Number(data[rowIdx - 1][headers.indexOf('total_satang')] || 0)),
-      String(body.payer_name || ''), String(body.payer_note || ''),
-      'pending', '', ''
-    ]);
-
-    return { ok: true, message: 'ส่งข้อมูลแล้ว รอผู้ดูแลตรวจสอบ' };
-  } finally {
-    lock.releaseLock();
-  }
-}
 
 /**
  * เพิ่ม/แก้สินค้า (เฉพาะแอดมิน)
@@ -1855,80 +1578,6 @@ function _deleteProduct(productId) {
     return { ok: false, error: 'ไม่พบสินค้านี้' };
   } finally {
     lock.releaseLock();
-  }
-}
-
-/**
- * ยืนยัน / ปฏิเสธการจ่ายเงิน (เฉพาะแอดมิน)
- * ป้องกันการยืนยันซ้ำ: ถ้ายืนยันไปแล้ว จะไม่ทำอะไรอีก
- */
-function _verifyOrder(orderId, approve, adminEmail) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_ORDERS);
-    const headers = _header(SHEET_ORDERS);
-    const data = sh.getDataRange().getValues();
-    const cId = headers.indexOf('order_id');
-    const cStatus = headers.indexOf('status');
-
-    let rowIdx = -1;
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][cId]) === String(orderId)) { rowIdx = i + 1; break; }
-    }
-    if (rowIdx === -1) return { ok: false, error: 'ไม่พบคำสั่งซื้อ' };
-
-    const current = String(data[rowIdx - 1][cStatus]);
-    // 🛡 กันยืนยันซ้ำ/กันทับสถานะเดิม
-    if (current !== ORDER_STATUS.NEW) {
-      return { ok: false, error: 'คำสั่งซื้อนี้ถูกดำเนินการแล้ว (' + current + ')' };
-    }
-
-    const email = String(adminEmail || '');
-    const target = approve ? ORDER_STATUS.PAID : ORDER_STATUS.REJECTED;
-    sh.getRange(rowIdx, cStatus + 1).setValue(target);
-    sh.getRange(rowIdx, headers.indexOf('verified_by') + 1).setValue(email);
-    sh.getRange(rowIdx, headers.indexOf('verified_at') + 1).setValue(new Date());
-
-    let granted = 0;
-    if (approve) {
-      _increaseSales(String(orderId));
-      // ✅ แจกสิทธิ์เข้าคลังไฟล์ของลูกค้าอัตโนมัติ
-      granted = _grantLibrary(String(orderId), email);
-    }
-
-    return {
-      ok: true,
-      status: target,
-      granted: granted,
-      message: approve
-        ? 'ยืนยันแล้ว ส่งไฟล์เข้าคลังของลูกค้าเรียบร้อย (' + granted + ' ไฟล์)'
-        : 'ปฏิเสธแล้ว'
-    };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/** เพิ่มยอดขายของสินค้าในออเดอร์ที่ยืนยันแล้ว (นับจากของจริง ไม่ใช่ตัวเลขปั้น) */
-function _increaseSales(orderId) {
-  const items = _readSheet(SHEET_ORDER_ITEMS)
-    .filter(function (x) { return String(x.order_id) === String(orderId); });
-  if (items.length === 0) return;
-
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_PRODUCTS);
-  const ph = _header(SHEET_PRODUCTS);
-  const pdata = sh.getDataRange().getValues();
-  const cId = ph.indexOf('product_id');
-  const cSales = ph.indexOf('sales');
-
-  for (let i = 0; i < items.length; i++) {
-    for (let j = 1; j < pdata.length; j++) {
-      if (String(pdata[j][cId]) === String(items[i].product_id)) {
-        const add = Number(items[i].qty || 0);
-        sh.getRange(j + 1, cSales + 1).setValue(Number(pdata[j][cSales] || 0) + add);
-      }
-    }
   }
 }
 

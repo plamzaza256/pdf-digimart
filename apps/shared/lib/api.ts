@@ -111,39 +111,6 @@ export function apiSession(email: string, token: string) {
 
 // ============================ ออเดอร์ / คลังไฟล์ ============================
 
-export interface ApiOrder {
-  orderId: string;
-  createdAt: string;
-  customerName?: string;
-  customerEmail?: string;
-  userId?: string;
-  status: string;
-  total: number;
-  paymentRef?: string;
-  libraryGranted?: boolean;
-  items: { productId: string; title: string; price: number; qty: number }[];
-}
-
-/** ออเดอร์ทั้งหมด (เฉพาะผู้ดูแล) */
-export function apiOrderList(email: string, token: string) {
-  return call('order.list', { email, token });
-}
-
-/** ยืนยันว่าจ่ายเงินแล้ว → ระบบแจกสิทธิ์เข้าคลังไฟล์อัตโนมัติ */
-export function apiVerifyOrder(email: string, token: string, orderId: string) {
-  return call('order.verify', { email, token, order_id: orderId });
-}
-
-/** ปฏิเสธคำสั่งซื้อ (เฉพาะผู้ดูแล) */
-export function apiRejectOrder(email: string, token: string, orderId: string) {
-  return call('order.reject', { email, token, order_id: orderId });
-}
-
-/** ถอดสิทธิ์ดาวน์โหลด (เฉพาะผู้ดูแล) */
-export function apiRevokeGrant(email: string, token: string, grantId: string) {
-  return call('library.revoke', { email, token, grant_id: grantId });
-}
-
 // ============================ ค่าตั้งร้าน ============================
 
 /** ค่าที่หน้าเว็บต้องรู้ก่อนเริ่มทำงาน (Firebase + ข้อมูลร้าน) */

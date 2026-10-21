@@ -6,16 +6,20 @@ import { useShop } from '../store/shop';
 export default function ProductCard({ p }: { p: Product }) {
   const { isFavorite, toggleFavorite } = useShop();
   const liked = isFavorite(p.id);
+  // 🏷️ สินค้าสถานะ WIP → แสดงป้ายกำกับ (และถูกย้ายไปท้ายสุดโดยเซิร์ฟเวอร์)
+  const isWip = p.status === 'WIP';
 
   return (
-    <article className="card">
+    <article className={`card${isWip ? ' card-wip' : ''}`}>
       <Link to={`/product/${p.id}`} className="cover" style={{ background: p.coverColor }}>
         <span className="cover-pdf">PDF</span>
         <span className="cover-title">{p.title.slice(0, 42)}</span>
         <span className="cover-meta">{p.category} • {p.pages} หน้า</span>
+        {isWip && <span className="cover-wip">WIP</span>}
       </Link>
       <div className="card-body">
         <span className="pill">{p.category}</span>
+        {isWip && <span className="pill pill-wip">WIP</span>}
         <Link to={`/product/${p.id}`} className="card-title">{p.title}</Link>
         <p className="card-desc">{p.description}</p>
         <div className="card-meta">

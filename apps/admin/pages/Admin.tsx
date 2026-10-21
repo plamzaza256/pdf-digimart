@@ -184,7 +184,7 @@ export default function Admin() {
           <label>ชื่อสินค้า<input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></label>
           <label>หมวดหมู่
             <select className="input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as Category })}>
-              <option>ห้อแล้ว</option><option>หนังสือ</option><option>Flashcard</option><option>อื่นๆ</option>
+              <option>ข้อสอบ</option><option>หนังสือ</option><option>Flashcard</option><option>อื่นๆ</option>
             </select>
           </label>
         </div>
@@ -241,8 +241,8 @@ export default function Admin() {
                 <td>
                   {p.status === 'published' ? (
                     <span className="pill">เผยแพร่</span>
-                  ) : p.status === 'draft' ? (
-                    <span className="pill pill-mute">ยังไม่เผยแพร่</span>
+                  ) : p.status === 'WIP' ? (
+                    <span className="pill pill-wip">WIP (ท้ายสุด)</span>
                   ) : (
                     <span className="pill pill-mute">ซ่อน</span>
                   )}
