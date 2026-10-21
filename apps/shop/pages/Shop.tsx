@@ -1,13 +1,22 @@
 import { useMemo, useState } from 'react';
 import { useShop } from '../store/shop';
 import ProductCard from '../components/ProductCard';
-import { CATEGORIES } from '../data/products';
 
 export default function Shop() {
   const { products, loading, loadError, reload, totalInSheet, salesSummary } = useShop();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<string>('ทั้งหมด');
   const [sort, setSort] = useState('popular');
+
+  // 🏷️ หมวดหมู่ดึงจากสินค้าที่โหลดมาจริง → ตรงกับ dropdown ในชีตเสมอ
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of products) {
+      const c = String(p.category || '').trim();
+      if (c) set.add(c);
+    }
+    return ['ทั้งหมด', ...Array.from(set)];
+  }, [products]);
 
   const list = useMemo(() => {
     let out = [...products];
@@ -27,7 +36,10 @@ export default function Shop() {
       case 'rating': out.sort((a, b) => b.rating - a.rating); break;
       default: out.sort((a, b) => b.sales - a.sales);
     }
-    return out;
+    // 📍 สินค้าสถานะ WIP ต้องอยู่ท้ายสุดเสมอ (ไม่ว่าจะเรียงยังไง)
+    const normal = out.filter((p) => p.status !== 'WIP');
+    const wip = out.filter((p) => p.status === 'WIP');
+    return normal.concat(wip);
   }, [products, q, cat, sort]);
 
   return (
@@ -54,7 +66,7 @@ export default function Shop() {
           onChange={(e) => setQ(e.target.value)}
         />
         <select className="input" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="หมวดหมู่">
-          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <select className="input" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="เรียงตาม">
           <option value="popular">ขายดี</option>

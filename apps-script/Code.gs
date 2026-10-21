@@ -324,10 +324,11 @@ function _findUserRow(email) {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_USERS);
   const headers = _header(SHEET_USERS);
   const data = sh.getDataRange().getValues();
-  const cEmail = headers.indexOf('email');
+  const hIdx = _findHeaderRow(data);
+  const cEmail = _colIndex(headers, 'email');
   const clean = String(email || '').trim().toLowerCase();
 
-  for (let i = 1; i < data.length; i++) {
+  for (let i = hIdx + 1; i < data.length; i++) {
     if (String(data[i][cEmail] || '').toLowerCase() === clean) {
       const obj = {};
       for (let c = 0; c < headers.length; c++) obj[headers[c]] = data[i][c];
@@ -339,7 +340,7 @@ function _findUserRow(email) {
 
 /** เขียนค่าลงช่องหนึ่งช่องของแถวที่ระบุ (เลือกคอลัมน์จากชื่อ ปลอดภัยกว่าเลขตำแหน่ง) */
 function _writeUserCell(found, columnName, value) {
-  const c = found.headers.indexOf(columnName);
+  const c = _colIndex(found.headers, columnName);
   if (c === -1) return;
   found.sheet.getRange(found.rowIdx, c + 1).setValue(value);
 }
@@ -632,7 +633,7 @@ function _firebaseLogin(body) {
     for (let i = 0; i < cols; i++) row.push('');
 
     const put = function (name, value) {
-      const c = headers.indexOf(name);
+      const c = _colIndex(headers, name);
       if (c !== -1) row[c] = value;
     };
     put('User_id', userId);
@@ -1064,14 +1065,15 @@ function _toggleFavorite(body, on) {
     const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_FAVORITES);
     const headers = _header(SHEET_FAVORITES);
     const data = sh.getDataRange().getValues();
-    const cEmail = headers.indexOf('email');
-    const cProduct = headers.indexOf('product_id');
-    const cId = headers.indexOf('fav_id');
-    const cUser = headers.indexOf('User_id');
-    const cAt = headers.indexOf('created_at');
+    const hIdx = _findHeaderRow(data);
+    const cEmail = _colIndex(headers, 'email');
+    const cProduct = _colIndex(headers, 'product_id');
+    const cId = _colIndex(headers, 'fav_id');
+    const cUser = _colIndex(headers, 'User_id');
+    const cAt = _colIndex(headers, 'created_at');
 
     let found = -1;
-    for (let i = 1; i < data.length; i++) {
+    for (let i = hIdx + 1; i < data.length; i++) {
       if (String(data[i][cEmail] || '').toLowerCase() === email &&
           String(data[i][cProduct]) === productId) {
         found = i + 1;
@@ -1083,11 +1085,11 @@ function _toggleFavorite(body, on) {
       if (found === -1) {
         const row = [];
         for (let i = 0; i < headers.length; i++) row.push('');
-        row[cId] = Utilities.getUuid();
-        row[cEmail] = email;
-        row[cUser] = sess.user.user_id || '';
-        row[cProduct] = productId;
-        row[cAt] = new Date();
+        if (cId !== -1) row[cId] = Utilities.getUuid();
+        if (cEmail !== -1) row[cEmail] = email;
+        if (cUser !== -1) row[cUser] = sess.user.user_id || '';
+        if (cProduct !== -1) row[cProduct] = productId;
+        if (cAt !== -1) row[cAt] = new Date();
         sh.appendRow(row);
       }
       return { ok: true, on: true, productId: productId, message: 'เพิ่มดาวถูกใจแล้ว' };
@@ -1123,11 +1125,12 @@ function _syncFavorites(body) {
     const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_FAVORITES);
     const headers = _header(SHEET_FAVORITES);
     const data = sh.getDataRange().getValues();
-    const cEmail = headers.indexOf('email');
-    const cProduct = headers.indexOf('product_id');
+    const hIdx = _findHeaderRow(data);
+    const cEmail = _colIndex(headers, 'email');
+    const cProduct = _colIndex(headers, 'product_id');
 
     const existing = {};
-    for (let i = 1; i < data.length; i++) {
+    for (let i = hIdx + 1; i < data.length; i++) {
       if (String(data[i][cEmail] || '').toLowerCase() === email) {
         existing[String(data[i][cProduct])] = true;
       }
@@ -1139,11 +1142,14 @@ function _syncFavorites(body) {
       if (!productId || existing[productId]) continue;
       const row = [];
       for (let i = 0; i < headers.length; i++) row.push('');
-      row[headers.indexOf('fav_id')] = Utilities.getUuid();
-      row[cEmail] = email;
-      row[headers.indexOf('User_id')] = sess.user.user_id || '';
-      row[cProduct] = productId;
-      row[headers.indexOf('created_at')] = new Date();
+      const cFav = _colIndex(headers, 'fav_id');
+      const cUsr = _colIndex(headers, 'User_id');
+      const cCre = _colIndex(headers, 'created_at');
+      if (cFav !== -1) row[cFav] = Utilities.getUuid();
+      if (cEmail !== -1) row[cEmail] = email;
+      if (cUsr !== -1) row[cUsr] = sess.user.user_id || '';
+      if (cProduct !== -1) row[cProduct] = productId;
+      if (cCre !== -1) row[cCre] = new Date();
       sh.appendRow(row);
       existing[productId] = true;
       merged++;
@@ -1326,11 +1332,12 @@ function _upsertProduct(p) {
     const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_PRODUCTS);
     const headers = _header(SHEET_PRODUCTS);
     const data = sh.getDataRange().getValues();
-    const cId = headers.indexOf('product_id');
+    const hIdx = _findHeaderRow(data);
+    const cId = _colIndex(headers, 'product_id');
 
     let found = -1;
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][cId]) === id) { found = i + 1; break; }
+    for (let i = hIdx + 1; i < data.length; i++) {
+      if (cId !== -1 && String(data[i][cId]) === id) { found = i + 1; break; }
     }
 
     if (found > 0) {
@@ -1345,7 +1352,7 @@ function _upsertProduct(p) {
 
       for (const name in values) {
         if (name === 'created_at') continue;
-        const c = headers.indexOf(name);
+        const c = _colIndex(headers, name);
         if (c === -1) continue;
 
         // 🔒 ช่องนี้มีสูตรอยู่ → ห้ามเขียนทับ
@@ -1368,7 +1375,7 @@ function _upsertProduct(p) {
     const row = [];
     for (let i = 0; i < cols; i++) row.push('');
     for (const name in values) {
-      const c = headers.indexOf(name);
+      const c = _colIndex(headers, name);
       if (c !== -1) row[c] = values[name];
     }
     sh.appendRow(row);
@@ -1392,15 +1399,16 @@ function _deleteProduct(productId) {
     const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_PRODUCTS);
     const headers = _header(SHEET_PRODUCTS);
     const data = sh.getDataRange().getValues();
-    const cId = headers.indexOf('product_id');
-    const cStatus = headers.indexOf('status');
+    const hIdx = _findHeaderRow(data);
+    const cId = _colIndex(headers, 'product_id');
+    const cStatus = _colIndex(headers, 'status');
 
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][cId]) === id) {
+    for (let i = hIdx + 1; i < data.length; i++) {
+      if (cId !== -1 && String(data[i][cId]) === id) {
         // ปัดสถานะเป็น archived แทนการลบแถวทิ้ง
         // → ข้อมูลออเดอร์เก่าที่อ้างถึงสินค้านี้ยังอ้างอิงได้
         if (cStatus !== -1) {
-          sh.getRange(i + 1, cStatus + 1).setValue('archived');
+          sh.getRange(i + 1, cStatus + 1).setValue('Discontinued');
           return { ok: true, message: 'ซ่อนสินค้าจากหน้าเว็บแล้ว (เก็บประวัติไว้)', id: id };
         }
         sh.deleteRow(i + 1);
@@ -1433,22 +1441,154 @@ function _hash(text) {
   }).join('');
 }
 
-function _header(sheetName) {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
-  return sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+/**
+ * 🏷️ ชื่อคอลัมน์มาตรฐาน + ชื่อสำรองที่ยอมรับได้
+ *
+ * เจ้าของร้านเขียนชื่อคอลัมน์เองได้หลายแบบ (product_id / Product ID / Product-ID)
+ * → ระบบหาคอลัมน์แบบยืดหยุ่น ไม่ต้องแก้โค้ดทุกครั้ง
+ */
+const SHEET_FIELD_ALIASES = {
+  product_id: ['productid', 'productcode', 'sku', 'id'],
+  title: ['name', 'productname'],
+  long_description: ['longdescription', 'descriptionlong', 'detail'],
+  document_language: ['documentlang', 'doclang', 'lang'],
+  description_language: ['descriptionlang', 'desclang'],
+  document_type: ['documenttype', 'doctype'],
+  price_satang: ['pricesatang', 'price', 'pricethb'],
+  old_price_satang: ['oldpricesatang', 'oldprice'],
+  file_size: ['filesize'],
+  cover_color: ['covercolor'],
+  created_at: ['createdat'],
+  user_id: ['userid'],
+  favorite_id: ['favoriteid'],
+  product_name: ['productname']
+};
+
+/** 🧹 ทำให้ชื่อคอลัมน์เทียบกันได้ (ตัดช่องว่าง / _ / - / . และพิมพ์เล็ก) */
+function _normKey(s) {
+  return String(s == null ? '' : s).trim().toLowerCase().replace(/[\s_\-.]/g, '');
 }
 
+/**
+ * 🔎 หาแถวหัวตารางอัตโนมัติ
+ *
+ * เจ้าของร้านอาจใส่แถวชื่อรายงานไว้ก่อนหัวตาราง
+ *   แถว 1 = "Product Config"   แถว 2 = ชื่อคอลัมน์   แถว 3+ = ข้อมูล
+ *
+ * 🛡 เลือกแถวที่ "กว้างที่สุด" ในช่วง 8 แถวแรก (แถวชื่อรายงานมักมีไม่กี่ช่อง)
+ * 🛡 ข้ามแถวที่เป็นตัวเลขล้วน (แถวข้อมูล ไม่ใช่หัวตาราง)
+ */
+function _findHeaderRow(vals) {
+  const maxScan = Math.min(8, vals.length);
+  const candidates = [];
+
+  for (let r = 0; r < maxScan; r++) {
+    const cells = vals[r] || [];
+    let filled = 0;
+    let texts = 0;
+    for (let c = 0; c < cells.length; c++) {
+      const v = cells[c];
+      if (v === '' || v === null || v === undefined) continue;
+      filled++;
+      if (typeof v === 'string') texts++;
+    }
+    if (filled < 2) continue;                       // แถวชื่อรายงานมีช่องเดียว → ข้าม
+    if (texts < filled * 0.6) continue;            // แถวตัวเลขล้วน → ไม่ใช่หัวตาราง
+
+    // แถวถัดไปต้องมีข้อมูล (กันเลือกหัวตารางที่อยู่ท้ายสุด)
+    let nextHasData = false;
+    if (r + 1 < vals.length) {
+      const nrow = vals[r + 1] || [];
+      for (let c = 0; c < nrow.length; c++) {
+        const v = nrow[c];
+        if (v !== '' && v !== null && v !== undefined) { nextHasData = true; break; }
+      }
+    }
+    if (!nextHasData) continue;
+
+    candidates.push({ row: r, score: filled });
+  }
+
+  if (!candidates.length) return 0;
+
+  let maxScore = 0;
+  for (let i = 0; i < candidates.length; i++) {
+    if (candidates[i].score > maxScore) maxScore = candidates[i].score;
+  }
+
+  // เลือกแถวแรกที่ "เกือบกว้างที่สุด" (แถวชื่อรายงานแคบเกินไป → ตกรอบ)
+  const floor = maxScore * 0.6;
+  for (let i = 0; i < candidates.length; i++) {
+    if (candidates[i].score >= floor) return candidates[i].row;
+  }
+  return candidates[0].row;
+}
+
+/** 🔎 หาเลขคอลัมน์จากชื่อ (ยืดหยุ่น ไม่สนเครื่องหมาย) */
+function _colIndex(headers, name) {
+  const n = _normKey(name);
+  for (let i = 0; i < headers.length; i++) {
+    if (_normKey(headers[i]) === n) return i;
+  }
+  const al = SHEET_FIELD_ALIASES[name] || [];
+  for (let j = 0; j < al.length; j++) {
+    const a = _normKey(al[j]);
+    for (let i = 0; i < headers.length; i++) {
+      if (_normKey(headers[i]) === a) return i;
+    }
+  }
+  return -1;
+}
+
+/** 🏷️ เติมค่าตามชื่อคอลัมน์มาตรฐาน (รองรับทั้งชื่อเต็มและชื่อย่อ) */
+function _resolveFields(obj, norm) {
+  for (const field in SHEET_FIELD_ALIASES) {
+    if (obj[field] !== undefined) continue;
+    const n = _normKey(field);
+    if (norm[n] !== undefined) { obj[field] = norm[n]; continue; }
+    const al = SHEET_FIELD_ALIASES[field];
+    for (let j = 0; j < al.length; j++) {
+      const a = _normKey(al[j]);
+      if (norm[a] !== undefined) { obj[field] = norm[a]; break; }
+    }
+  }
+  return obj;
+}
+
+/** 📋 หัวตารางของชีต (หาแถวหัวตารางอัตโนมัติ) */
+function _header(sheetName) {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  if (!sh) return [];
+  const vals = sh.getDataRange().getValues();
+  if (!vals.length) return [];
+  const hIdx = _findHeaderRow(vals);
+  return vals[hIdx].map(function (h) { return String(h || '').trim(); });
+}
+
+/** 📋 อ่านข้อมูลทั้งชีต (หาแถวหัวตารางอัตโนมัติ + รองรับชื่อคอลัมน์หลายแบบ) */
 function _readSheet(sheetName) {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
   if (!sh) return [];
   const vals = sh.getDataRange().getValues();
   if (vals.length <= 1) return [];
-  const headers = vals[0];
+
+  const hIdx = _findHeaderRow(vals);
+  const headers = vals[hIdx].map(function (h) { return String(h || '').trim(); });
+
   const out = [];
-  for (let i = 1; i < vals.length; i++) {
-    if (!vals[i][0]) continue; // แถวว่าง
+  for (let i = hIdx + 1; i < vals.length; i++) {
+    const row = vals[i];
+    if (!row[0]) continue; // แถวว่าง
     const obj = {};
-    for (let c = 0; c < headers.length; c++) obj[headers[c]] = vals[i][c];
+    const norm = {};
+    for (let c = 0; c < headers.length; c++) {
+      const h = headers[c];
+      if (!h) continue;
+      obj[h] = row[c];
+      const n = _normKey(h);
+      if (n && norm[n] === undefined) norm[n] = row[c];
+    }
+    _resolveFields(obj, norm);
     out.push(obj);
   }
   return out;
