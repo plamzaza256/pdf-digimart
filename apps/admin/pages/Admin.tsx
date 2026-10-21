@@ -194,7 +194,7 @@ export default function Admin() {
         <div className="grid3">
           <label>ราคา (บาท)<input className="input" type="number" min={0} value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} /></label>
           <label>ราคาเดิม (เว้นว่างไว้ถ้าไม่มี)<input className="input" type="number" min={0} value={form.oldPrice ?? ''} onChange={(e) => setForm({ ...form, oldPrice: e.target.value === '' ? undefined : Number(e.target.value) })} placeholder="เช่น 299" /></label>
-          <label>จำนวนหน้า<input className="input" type="number" min={1} value={form.pages} onChange={(e) => setForm({ ...form, pages: Number(e.target.value) })} /></label>
+          <label>จำนวนหน้า<input className="input" value={form.pages ?? ''} onChange={(e) => setForm({ ...form, pages: e.target.value })} placeholder="เช่น 80 หรือ 80 ข้อ • 46" /></label>
         </div>
         <div className="grid3">
           <label>ขนาดไฟล์ (ข้อความ)<input className="input" value={form.fileSize} onChange={(e) => setForm({ ...form, fileSize: e.target.value })} /></label>

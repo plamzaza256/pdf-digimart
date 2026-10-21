@@ -22,3 +22,14 @@ export const mockProducts: Product[] = [];
 export function formatPrice(price: number): string {
   return `${Math.round(price).toLocaleString('th-TH')} ฿`;
 }
+
+/**
+ * 📄 แสดงจำนวนหน้า
+ *   80           → "80 หน้า"
+ *   "80 ข้อ • 46" → "80 ข้อ • 46" (แสดงตามที่เจ้าของร้านเขียนไว้)
+ */
+export function pagesLabel(pages: number | string | undefined): string {
+  if (pages === undefined || pages === null) return '';
+  if (typeof pages === 'number') return pages > 0 ? pages + ' หน้า' : '';
+  return String(pages).trim();
+}

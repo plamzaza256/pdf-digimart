@@ -9,7 +9,8 @@ export interface Product {
   category: Category;
   price: number;
   oldPrice?: number;
-  pages: number;
+  /** จำนวนหน้า — เลข (80) หรือข้อความ ("80 ข้อ • 46") ตามที่เจ้าของร้านเขียนในชีต */
+  pages?: number | string;
   fileSize: string;
   rating: number;
   sales: number;

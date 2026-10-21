@@ -140,9 +140,7 @@ let publicConfigCache: PublicConfig | null = null;
  */
 export async function apiPublicConfig(): Promise<PublicConfig> {
   if (publicConfigCache) return publicConfigCache;
-  const res = await fetch(`${apiUrl()}?action=public.config`);
-  if (!res.ok) throw new Error('โหลดค่าตั้งร้านไม่สำเร็จ');
-  const data = (await res.json()) as PublicConfig;
+  const data = await getJson<PublicConfig>(`${apiUrl()}?action=public.config`);
   if (!data.ok || !data.firebase || !data.firebase.apiKey) {
     throw new Error('เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า Firebase');
   }
@@ -152,9 +150,38 @@ export async function apiPublicConfig(): Promise<PublicConfig> {
 
 // ============================ สินค้า ============================
 
+
+/**
+ * 🔁 ยิง GET อย่างปลอดภัย — ลองซ้ำเมื่อเซิร์ฟเวอร์ Apps Script ตอบ 404/429 ชั่วคราว
+ *
+ * 🛡 ตอน deploy ใหม่ เซิร์ฟเวอร์จะตอบ 404 ประมาณ 1-2 นาที
+ *    ถ้าไม่ลองซ้ำ → หน้าเว็บค้างที่ "กำลังโหลดสินค้า…" ตลอด
+ */
+async function getJson<T>(url: string, tries = 3): Promise<T> {
+  let lastErr: unknown = null;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 30000);
+      try {
+        const res = await fetch(url, { signal: ctrl.signal });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return (await res.json()) as T;
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch (e) {
+      lastErr = e;
+      if (i < tries - 1) {
+        await new Promise((r) => setTimeout(r, 2000 * (i + 1)));
+      }
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error('โหลดข้อมูลไม่สำเร็จ');
+}
+
 export async function apiListProducts() {
-  const res = await fetch(`${apiUrl()}?action=products.list`);
-  return (await res.json()) as {
+  return getJson<{
     ok: boolean;
     products: unknown[];
     /** จำนวนสินค้าทั้งหมดในชีต (รวมที่ยังไม่เผยแพร่) */
@@ -163,7 +190,7 @@ export async function apiListProducts() {
     hidden?: number;
     /** ยอดขายรวม (อ่านจากคอลัมน์ sales ในชีต Products) */
     salesTotal?: number;
-  };
+  }>(`${apiUrl()}?action=products.list`);
 }
 
 /** สินค้าทั้งหมดรวม draft (เฉพาะแอดมิน) */

@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import { useShop } from '../store/shop';
-import { formatPrice } from '../data/products';
+import { formatPrice, pagesLabel } from '../data/products';
 import OrderLineButton from '@shared/components/OrderLineButton';
 import { parseFileSize } from '@shared/lib/fileSize';
 
@@ -29,7 +29,11 @@ export default function ProductDetail() {
         <div className="detail-cover" style={{ background: p.coverColor }}>
           <span className="cover-pdf big">PDF</span>
           <h2>{p.title}</h2>
-          <p>{p.category} • {p.pages} หน้า • {p.fileSize}</p>
+          <p>
+            {p.category}
+            {pagesLabel(p.pages) ? ' • ' + pagesLabel(p.pages) : ''}
+            {p.fileSize ? ' • ' + p.fileSize : ''}
+          </p>
           <div className="preview-box">
             🔒 ตัวอย่างไฟล์ — รุ่นนี้ยังไม่เปิดดาวน์โหลดฉบับเต็ม
             และไม่มีไฟล์ส่วนตัวเก็บในพื้นที่สาธารณะ
@@ -43,7 +47,7 @@ export default function ProductDetail() {
             {/* ⛔ โชว์เฉพาะตัวเลขที่มีจริง — ไม่โชว์ยอดขายปลอม */}
             {p.rating > 0 && <><span>⭐ {p.rating.toFixed(1)}</span><span>•</span></>}
             {p.sales > 0 && <><span>ขายแล้ว {p.sales.toLocaleString('th-TH')}</span><span>•</span></>}
-            <span>{p.pages} หน้า</span>
+            <span>{pagesLabel(p.pages)}</span>
           </div>
           <p>{p.longDescription}</p>
           <div className="tags">{p.tags.map((t) => <span key={t} className="tag">#{t}</span>)}</div>
@@ -85,7 +89,7 @@ export default function ProductDetail() {
                 )}
               </dd>
             </div>
-            <div><dt>จำนวนหน้า</dt><dd>{p.pages} หน้า</dd></div>
+            <div><dt>จำนวนหน้า</dt><dd>{pagesLabel(p.pages) || '-'}</dd></div>
             <div><dt>อัปเดต</dt><dd>{p.createdAt}</dd></div>
           </dl>
         </div>

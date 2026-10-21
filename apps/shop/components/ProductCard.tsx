@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { Product } from '@shared/types';
-import { formatPrice } from '../data/products';
+import { formatPrice, pagesLabel } from '../data/products';
 import { useShop } from '../store/shop';
 
 export default function ProductCard({ p }: { p: Product }) {
@@ -14,7 +14,9 @@ export default function ProductCard({ p }: { p: Product }) {
       <Link to={`/product/${p.id}`} className="cover" style={{ background: p.coverColor }}>
         <span className="cover-pdf">PDF</span>
         <span className="cover-title">{p.title.slice(0, 42)}</span>
-        <span className="cover-meta">{p.category} • {p.pages} หน้า</span>
+        <span className="cover-meta">
+          {p.category}{pagesLabel(p.pages) ? ' • ' + pagesLabel(p.pages) : ''}
+        </span>
         {isWip && <span className="cover-wip">WIP</span>}
       </Link>
       <div className="card-body">

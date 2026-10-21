@@ -794,7 +794,7 @@ function _listProducts() {
       oldPrice: r.old_price_satang === '' || r.old_price_satang == null
         ? undefined
         : Math.round(Number(r.old_price_satang) / 100),
-      pages: Number(r.pages || 0),
+      pages: _pagesVal(r.pages),
       fileSize: r.file_size,
       rating: Number(r.rating || 0),
       // 🧾 ยอดขาย: อ่านจากคอลัมน์ sales ในแท็บ Products
@@ -1189,7 +1189,7 @@ function _listProductsAll() {
       oldPrice: r.old_price_satang === '' || r.old_price_satang == null
         ? undefined
         : Math.round(Number(r.old_price_satang) / 100),
-      pages: Number(r.pages || 0),
+      pages: _pagesVal(r.pages),
       fileSize: r.file_size,
       rating: Number(r.rating || 0),
       sales: Number(r.sales || 0),
@@ -1313,7 +1313,11 @@ function _upsertProduct(p) {
     tags: Array.isArray(p.tags) ? p.tags.join(',') : String(p.tags || ''),
     price_satang: priceSatang,
     old_price_satang: p.oldPrice ? Math.round(Number(p.oldPrice) * 100) : '',
-    pages: Math.max(1, Number(p.pages || 1)),
+    pages: (function () {
+      const v = _pagesVal(p.pages);
+      if (typeof v === 'number') return Math.max(1, Math.round(v));
+      return v;
+    })(),
     file_size: String(p.fileSize || 'PDF'),
     rating: Number(p.rating || 0),
     sales: Number(p.sales || 0),
@@ -1463,6 +1467,19 @@ const SHEET_FIELD_ALIASES = {
   favorite_id: ['favoriteid'],
   product_name: ['productname']
 };
+
+/**
+ * 📄 จำนวนหน้า — รองรับทั้งตัวเลข (80) และข้อความ ("80 ข้อ • 46")
+ * เจ้าของร้านเขียนอิสระได้ เว็บก็แสดงตามนั้น
+ */
+function _pagesVal(v) {
+  if (v === '' || v === null || v === undefined) return 0;
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  const s = String(v).trim();
+  if (!s) return 0;
+  const n = Number(s);
+  return isFinite(n) ? n : s;
+}
 
 /** 🧹 ทำให้ชื่อคอลัมน์เทียบกันได้ (ตัดช่องว่าง / _ / - / . และพิมพ์เล็ก) */
 function _normKey(s) {
