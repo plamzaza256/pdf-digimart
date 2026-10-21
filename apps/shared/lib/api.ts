@@ -187,7 +187,14 @@ export async function apiPublicConfig(): Promise<PublicConfig> {
 
 export async function apiListProducts() {
   const res = await fetch(`${apiUrl()}?action=products.list`);
-  return (await res.json()) as { ok: boolean; products: unknown[] };
+  return (await res.json()) as {
+    ok: boolean;
+    products: unknown[];
+    /** จำนวนสินค้าทั้งหมดในชีต (รวมที่ยังไม่เผยแพร่) */
+    total?: number;
+    /** จำนวนที่ถูกซ่อน (status ไม่ใช่ published) */
+    hidden?: number;
+  };
 }
 
 /** สินค้าทั้งหมดรวม draft (เฉพาะแอดมิน) */

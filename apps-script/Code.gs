@@ -803,13 +803,18 @@ function _isOpen() {
 
 function _listProducts() {
   const rows = _readSheet(SHEET_PRODUCTS);
-  if (rows.length === 0) return { ok: true, products: [] };
+  if (rows.length === 0) return { ok: true, products: [], total: 0, hidden: 0 };
 
   const out = [];
+  // 📊 นับสินค้าที่ถูกซ่อน เพื่อบอกหน้าเว็บว่า "มีของแต่ยังไม่เผยแพร่"
+  let hidden = 0;
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     // ⛔ กรองที่ฝั่งเซิร์ฟเวอร์: คนทั่วไปเห็นเฉพาะสินค้าที่ published เท่านั้น
-    if (String(r.status || '') !== 'published') continue;
+    if (String(r.status || '') !== 'published') {
+      hidden++;
+      continue;
+    }
     out.push({
       id: r.product_id,
       title: r.title,
@@ -835,7 +840,7 @@ function _listProducts() {
       createdAt: _fmtDate(r.created_at)
     });
   }
-  return { ok: true, products: out };
+  return { ok: true, products: out, total: rows.length, hidden: hidden };
 }
 
 function _productDetail(id) {

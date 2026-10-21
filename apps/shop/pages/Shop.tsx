@@ -4,7 +4,7 @@ import ProductCard from '../components/ProductCard';
 import { CATEGORIES } from '../data/products';
 
 export default function Shop() {
-  const { products, loading, loadError, reload } = useShop();
+  const { products, loading, loadError, reload, totalInSheet } = useShop();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<string>('ทั้งหมด');
   const [sort, setSort] = useState('popular');
@@ -67,7 +67,15 @@ export default function Shop() {
       ) : loading ? (
         <div className="empty">กำลังโหลดสินค้า…</div>
       ) : list.length === 0 ? (
-        <div className="empty">ไม่พบสินค้าที่ค้นหา ลองเปลี่ยนคำค้นหรือหมวดหมู่</div>
+        totalInSheet > 0 ? (
+          <div className="notice warn-box">
+            <b>มีสินค้าในชีต {totalInSheet} รายการ แต่ยังไม่ขึ้นหน้าเว็บ</b>
+            <br />
+            สินค้าจะขึ้นเว็บเมื่อสถานะเป็น <b>published</b> (เจ้าของร้านเปลี่ยนได้ในชีต)
+          </div>
+        ) : (
+          <div className="empty">ไม่พบสินค้าที่ค้นหา ลองเปลี่ยนคำค้นหรือหมวดหมู่</div>
+        )
       ) : (
         <div className="grid4">
           {list.map((p) => <ProductCard key={p.id} p={p} />)}

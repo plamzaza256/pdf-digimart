@@ -31,6 +31,8 @@ interface ShopState {
   loading: boolean;
   /** true = โหลดไม่สำเร็จ (เครือข่าย/เซิร์ฟเวอร์ล่ม) */
   loadError: boolean;
+  /** จำนวนสินค้าทั้งหมดในชีต (รวมที่ยังไม่เผยแพร่) */
+  totalInSheet: number;
   /** ลองโหลดใหม่ */
   reload: () => void;
   /** รหัสสินค้าที่ถูกใจ */
@@ -49,6 +51,8 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const [fromSheet, setFromSheet] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  // 📊 จำนวนสินค้าทั้งหมดในชีต (รวมที่ยังไม่เผยแพร่) — ใช้บอกว่า "มีของแต่ยังไม่ขึ้นเว็บ"
+  const [totalInSheet, setTotalInSheet] = useState(0);
   const [nonce, setNonce] = useState(0);
   // ⭐ เก็บดาวไว้ในเบราว์เซอร์ก่อน (ยังไม่ล็อกอินก็กดได้)
   const [favorites, setFavorites] = useState<string[]>(() =>
@@ -94,13 +98,20 @@ export function ShopProvider({ children }: { children: ReactNode }) {
           setProducts(list);
           setFromSheet(true);
           setLoadError(false);
-          try {
-            localStorage.setItem(
-              PRODUCTS_CACHE_KEY,
-              JSON.stringify({ at: Date.now(), data: list }),
-            );
-          } catch {
-            /* โหมดส่วนตัว — แคชไม่ได้ก็ไม่เป็นไร */
+          setTotalInSheet(Number(r.total || 0));
+
+          // 🛡 อย่าแคชผลลัพธ์ที่ว่างเปล่า
+          //    ถ้าเซิร์ฟเวอร์ตอบว่าไม่มีสินค้าชั่วคราว (เช่นกำลังแก้ชีต)
+          //    แคชที่ว่างจะทำให้เว็บโชว์ว่างไป 3 นาทีทั้งที่สินค้ามีอยู่จริง
+          if (list.length > 0) {
+            try {
+              localStorage.setItem(
+                PRODUCTS_CACHE_KEY,
+                JSON.stringify({ at: Date.now(), data: list }),
+              );
+            } catch {
+              /* โหมดส่วนตัว — แคชไม่ได้ก็ไม่เป็นไร */
+            }
           }
         } else {
           setLoadError(true);
@@ -203,6 +214,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       fromSheet,
       loading,
       loadError,
+      totalInSheet,
       reload: () => {
         setLoading(true);
         setNonce((n) => n + 1);
@@ -212,7 +224,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       isFavorite: (id: string) => allFavorites.includes(id),
       toggleFavorite,
     }),
-    [products, fromSheet, loading, loadError, allFavorites],
+    [products, fromSheet, loading, loadError, totalInSheet, allFavorites],
   );
 
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;
