@@ -1,14 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Product } from '@shared/types';
-import {
-  apiListProducts,
-  apiFavoritesList,
-  apiFavoriteAdd,
-  apiFavoriteRemove,
-  apiFavoritesSync,
-} from '@shared/lib/api';
-import { useAuth } from '@shared/store/auth';
+import { apiListProducts } from '@shared/lib/api';
 
 const FAVORITES_KEY = 'pdfshop_favorites_v1';
 const PRODUCTS_CACHE_KEY = 'pdfshop_products_cache_v1';
@@ -48,7 +41,6 @@ interface ShopState {
 const ShopContext = createContext<ShopState | null>(null);
 
 export function ShopProvider({ children }: { children: ReactNode }) {
-  const { user, token } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [fromSheet, setFromSheet] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -58,12 +50,11 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   // 🧾 ยอดขายรวม (อ่านจากคอลัมน์ sales ในชีต Products)
   const [salesSummary, setSalesSummary] = useState({ total: 0 });
   const [nonce, setNonce] = useState(0);
-  // ⭐ เก็บดาวไว้ในเบราว์เซอร์ก่อน (ยังไม่ล็อกอินก็กดได้)
+  // ⭐ ดาวถูกใจ = เก็บในเบราว์เซอร์เครื่องนี้เท่านั้น
+  //    เจ้าของร้านตัดสินใจ: ไม่เขียนลงชีต (ไม่จำเป็น + ไม่ให้ลูกค้าทั่วไปเขียนชีตได้)
   const [favorites, setFavorites] = useState<string[]>(() =>
     loadJSON<string[]>(FAVORITES_KEY, []),
   );
-  // ⭐ ดาวที่มาจากบัญชี (ชีต) — เอาไปรวมกับของ local
-  const [cloudFavorites, setCloudFavorites] = useState<string[]>([]);
 
   useEffect(() => {
     localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
@@ -137,81 +128,11 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     };
   }, [nonce]);
 
-  // ⭐ ดึงดาวจากบัญชี (ชีต) แล้วรวมกับที่ค้างในเบราว์เซอร์
-  useEffect(() => {
-    if (!user || !token) {
-      setCloudFavorites([]);
-      return;
-    }
-    let cancelled = false;
-
-    apiFavoritesList(user.email, token)
-      .then((r) => {
-        if (cancelled || !r.ok) return;
-        const fromCloud = Array.isArray(r.productIds) ? (r.productIds as string[]) : [];
-        setCloudFavorites(fromCloud);
-
-        // 🔄 ถ้ามีดาวที่ค้างในเบราว์เซอร์ (กดก่อนล็อกอิน) → ส่งเข้าบัญชี
-        const local = loadJSON<string[]>(FAVORITES_KEY, []);
-        const missing = local.filter((id) => !fromCloud.includes(id));
-        if (missing.length > 0) {
-          apiFavoritesSync(user.email, token, missing).then((sync) => {
-            if (cancelled || !sync.ok) return;
-            const all = Array.isArray(sync.productIds) ? (sync.productIds as string[]) : fromCloud;
-            setCloudFavorites(all);
-            setFavorites(all);
-          });
-        } else {
-          setFavorites(fromCloud);
-        }
-      })
-      .catch(() => {
-        /* โหลดดาวจากชีตไม่ได้ → ใช้ของในเบราว์เซอร์ไปก่อน */
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user, token]);
-
   const toggleFavorite = (id: string) => {
-    const nowOn = !favorites.includes(id);
-
-    // อัปเดตหน้าจอทันที (ไม่รอเซิร์ฟเวอร์)
     setFavorites((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
-
-    // 💾 ถ้าล็อกอินอยู่ → บันทึกลงชีตผูกกับอีเมล
-    if (user && token) {
-      const call = nowOn
-        ? apiFavoriteAdd(user.email, token, id)
-        : apiFavoriteRemove(user.email, token, id);
-      call
-        .then((r) => {
-          if (!r.ok) {
-            setFavorites((prev) =>
-              nowOn ? prev.filter((x) => x !== id) : [...prev, id],
-            );
-            return;
-          }
-          setCloudFavorites((prev) =>
-            nowOn ? [...new Set([...prev, id])] : prev.filter((x) => x !== id),
-          );
-        })
-        .catch(() => {
-          setFavorites((prev) =>
-            nowOn ? prev.filter((x) => x !== id) : [...prev, id],
-          );
-        });
-    }
   };
-
-  // ✅ ดาวที่แสดง = รวมของในเบราว์เซอร์กับของในบัญชี
-  const allFavorites = useMemo(
-    () => Array.from(new Set([...favorites, ...cloudFavorites])),
-    [favorites, cloudFavorites],
-  );
 
   const value = useMemo<ShopState>(
     () => ({
@@ -225,12 +146,12 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         setLoading(true);
         setNonce((n) => n + 1);
       },
-      favorites: allFavorites,
-      favoriteCount: allFavorites.length,
-      isFavorite: (id: string) => allFavorites.includes(id),
+      favorites,
+      favoriteCount: favorites.length,
+      isFavorite: (id: string) => favorites.includes(id),
       toggleFavorite,
     }),
-    [products, fromSheet, loading, loadError, totalInSheet, salesSummary, allFavorites],
+    [products, fromSheet, loading, loadError, totalInSheet, salesSummary, favorites],
   );
 
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;

@@ -1,132 +1,90 @@
-# 🔗 ลิงก์ทั้งหมดที่ต้องใช้
+# 🔗 ลิงก์ทั้งหมด + วิธี deploy
 
-> วันที่ 20 ต.ย. 2026 — เซิร์ฟเวอร์ URL เดิมตอบ **404** (หายไป)
-> ต้องหา URL ใหม่แล้วใส่ในเว็บแอดมิน → ตั้งค่าร้าน
-
----
-
-## 🔴 ปัญหาตอนนี้
-
-```
-URL เดิม:  AKfycbw0bNY-QDZU7IEIPkjWkKCsukpiC9sYhJNWIyOpxeW527IxuA3GqbsEWo2M_HO4lcsl
-→ HTTP 404 ❌  (ทุก action ทั้ง GET และ POST)
-
-URL เก่ากว่า: AKfycbzz3-ldqt2ZiLbSGkV-bQ-K-OKAHjv9E60c3eKm0BsIevqsG-q7NdmHiFo9jCk77kHS
-→ HTTP 200 ✅ แต่เป็นโค้ดเก่ามาก (ไม่รู้จัก public.config, product.list.all ฯลฯ)
-```
-
-**ผลกระทบ:** เว็บร้านตอนนี้โชว์ตัวเลขปลอม (ขายแล้ว 3,105 / 2,314)
-เพราะต่อเซิร์ฟเวอร์ไม่ได้ → ระบบ fallback ไปใช้ข้อมูลตัวอย่างในโค้ด
+> อัปเดต 22 ต.ค. 2026
 
 ---
 
-## 🔗 ลิงก์ที่ต้องใช้
+## 🔗 ลิงก์ที่ใช้บ่อย
 
-### 1. เปิด Apps Script (เพื่อ deploy)
+| อะไร | ลิงก์ |
+|---|---|
+| **เว็บร้าน** | https://pdf-digimart.pages.dev |
+| หน้าร้าน (ทุกสินค้า) | https://pdf-digimart.pages.dev/#/shop |
+| หน้าโครงสร้างชีต | https://pdf-digimart.pages.dev/#/sheet |
+| หน้าล็อกอิน (รอใช้ตอนเรทติ้ง) | https://pdf-digimart.pages.dev/#/login |
+| **ชีต** | https://docs.google.com/spreadsheets/d/1oqBm4P-KvkuDBemukSRyCpXDiJJQIdVjsapcDXIH4/edit |
+| **Apps Script (โค้ด)** | https://script.google.com/home/projects/18-FRt1vHs0-r91OaCaaHNxQE4KIYfSSMULYfS-xhRcj-pJPiSxui3x/edit |
+| หน้า deployments | https://script.google.com/home/projects/18-FRt1vHs0-r91OaCaaHNxQE4KIYfSSMULYfS-xhRcj-pJPiSxui3x/deployments |
 
-```
-https://script.google.com/home/projects/18-FRt1vHs0-r91OaCaaHNxQE4KIYfSSMULYfS-xhRcj-pJPiSxui3x/edit
-```
-
-### 2. หน้า "จัดการการทำให้ใช้งานได้" (เพื่อดู/แก้ URL)
-
-```
-https://script.google.com/home/projects/18-FRt1vHs0-r91OaCaaHNxQE4KIYfSSMULYfS-xhRcj-pJPiSxui3x/deployments
-```
-
-> หรือ: ในหน้า Apps Script → ปุ่มมุมขวาบน **"จัดการการทำให้ใช้งานได้"**
-
-### 3. หน้าแก้ไข "แอปเว็บ" (เพื่อแก้สิทธิ์การเข้าถึง)
+### URL เซิร์ฟเวอร์ (ใส่ในโค้ดฝั่งเว็บ — เปลี่ยนเมื่อไหร่ต้องแก้ + push ใหม่)
 
 ```
-https://script.google.com/home/projects/18-FRt1vHs0-r91OaCaaHNxQE4KIYfSSMULYfS-xhRcj-pJPiSxui3x/deployments/edit
+https://script.google.com/macros/s/AKfycbw0bNY-QDZU7IEIPkjWkKCsukpiC9sYhJNWIyOpxeW527IxuA3GqbsEWo2M_HO4lcsl/exec
 ```
 
-> เลือก deployment ชื่อ "Web app" → ปุ่มดินสอ → แก้ "การเข้าถึง" → **"ทุกคน" (Anyone)**
+> ไฟล์: `apps/shared/lib/api.ts` → ตัวแปร `DEFAULT_API_URL`
+> เว็บมี localStorage `pdfshop_server_url_v1` ไว้สำรอง (เคยใช้ตอนมีหน้าแอดมิน ตอนนี้ไม่ต้องแล้ว)
 
-### 4. โค้ด Apps Script (ต้นแบบที่ต้องวาง)
+---
 
-```
-apps-script/Code.gs  (ในเครื่อง)
-```
+## 🪜 วิธี deploy เซิร์ฟเวอร์ (ทำทุกครั้งที่ผมแก้ `Code.gs`)
 
-### 5. เว็บร้าน
-
-```
-https://pdf-digimart.pages.dev/
-```
-
-### 6. เว็บแอดมิน (ต้องล็อกอินก่อน)
+### ขั้นที่ 1 — วางโค้ด
 
 ```
-https://pdf-digimart-admin.pages.dev/#/login
+1. เปิดลิงก์ Apps Script ข้างบน
+2. คลิกไฟล์ โค้ด.gs (แท็บซ้าย)
+3. Ctrl+A → วางทับ (ไฟล์ล่าสุดอยู่ที่ ~/Desktop/Code.gs)
+4. 💾 Save (Ctrl+S)
 ```
 
-### 7. หน้าดูชีต (ดูชื่อคอลัมน์ / สูตร / dropdown สด)
+### ขั้นที่ 2 — Deploy
 
 ```
-https://pdf-digimart-admin.pages.dev/#/sheet
+จัดการการทำให้ใช้งานได้ (มุมขวาบน) → ✏️ แก้ไข
+   → เวอร์ชัน: ใหม่
+   → ผู้ที่มีสิทธิ์เข้าถึง: ทุกคน (Anyone)   ← สำคัญมาก
+   → ทำให้ใช้งานได้
 ```
 
-### 8. ชีต Google
+> ⏱️ หลัง deploy ระบบจะตอบ 404 ชั่วคราว 1-2 นาที (ไม่ต้องตกใจ)
+> เว็บมีระบบลองซ้ำให้อยู่แล้ว → ไม่ค้าง
+
+### ขั้นที่ 3 — เช็ค
 
 ```
-https://docs.google.com/spreadsheets/d/1oqBm4P-KvkuDBemukSRyCpXDiJJQIdVjsapcDXIH4/edit
+เปิด https://pdf-digimart.pages.dev/#/sheet
+→ ต้องเห็นชื่อแท็บ + ชื่อคอลัมน์ + สูตร
 ```
 
 ---
 
-## 🪜 ขั้นตอน (ทำตามลำดับ)
-
-### ขั้นที่ 1 — หา URL ใหม่
-
-1. เปิดลิงก์ข้อ 2
-2. ดูรายการ deployment
-3. ถ้ามี **"Web app"** อยู่ → คัดลอก URL ในช่อง "แอปเว็บ"
-4. ถ้าไม่มี → กด **"สร้าง" (New) → "เว็บแอป (Web app)"**
-   - ชื่อ: `PDF DigiMart API`
-   - ผู้ดำเนินการ: ผม (ที่อยู่ของคุณ)
-   - การเข้าถึง: **ทุกคน (Anyone)**
-   - คลิก **ทำให้ใช้งานได้**
-
-### ขั้นที่ 2 — วางโค้ดใหม่ (สำคัญ!)
-
-1. เปิดลิงก์ข้อ 1
-2. คัดลอก `apps-script/Code.gs` จากเครื่อง (Ctrl+A → Ctrl+C)
-3. วางทับใน Apps Script (Ctrl+A → Ctrl+V)
-4. 💾 Save
-
-### ขั้นที่ 3 — Deploy
+## 🪜 วิธี deploy เว็บ (ทำอัตโนมัติ — ไม่ต้องทำเอง)
 
 ```
-จัดการการทำให้ใช้งานได้ → ✏️ แก้ไข → เวอร์ชัน: ใหม่ → ทำให้ใช้งานได้
+push โค้ดขึ้น GitHub (main) → Cloudflare Pages rebuild อัตโนมัติ ~1-2 นาที
 ```
 
-> ถ้าขึ้นขออนุญาต → กด **อนุญาต**
-
-### ขั้นที่ 4 — ใส่ URL ในเว็บแอดมิน
-
-1. เปิด `https://pdf-digimart-admin.pages.dev/#/login`
-2. ล็อกอินด้วย Google
-3. ไปที่เมนู **"จัดการสินค้า"** → หัวข้อ **"ตั้งค่าร้าน"**
-4. วาง URL ใหม่ → บันทึก
-
-> ⚠️ **ถ้ายังไม่มีช่องใส่ URL** → ให้ผมเพิ่มก่อน (บอกได้ครับ)
-
-### ขั้นที่ 5 — ทดสอบ
-
+**Cloudflare Pages**
 ```
-1. เปิดเว็บร้าน → ต้องเห็น "สินค้าใหม่" (ไม่ใช่ตัวเลขปลอม 3,105)
-2. เว็บแอดมิน → เมนู "ดูชีต" → ต้องเห็นชีตจริงทั้งหมด
-3. แก้ราคาในชีต → รีเฟรชเว็บร้าน → ราคาต้องเปลี่ยน ✅
+Build command : npm run build:shop
+Output        : dist/shop
 ```
 
 ---
 
-## 🔎 ถ้าหา URL ไม่เจอ
+## 🗑️ หน้าแอดมิน (ปิดใช้งานแล้ว — 22 ต.ค. 2026)
 
-ส่งภาพหน้าจอ "จัดการการทำให้ใช้งานได้" มาให้ผมดูครับ
-ผมจะบอกว่าต้องกดอะไร
+เจ้าของร้านตัดสินใจยกเลิกหน้าแอดมิน (แก้สินค้าในชีทแทน) → **ลบโค้ดออกจากโปรเจกต์แล้ว**
+
+สิ่งที่ต้องทำ (ครั้งเดียว):
+```
+1. เปิด dash.cloudflare.com → Workers & Pages
+2. เจอโปรเจกต์ "pdf-digimart-admin"
+3. กด ... → Delete project → ยืนยัน
+```
+> ถ้าไม่ลบก็ได้ — เว็บนั้นจะยังเปิดได้แต่เข้าถึงข้อมูลไม่ได้ (เซิร์ฟเวอร์ไม่มี endpoint แอดมินแล้ว)
+> แต่แนะนำให้ลบ เพื่อไม่ให้สับสน
 
 ---
 
@@ -134,17 +92,20 @@ https://docs.google.com/spreadsheets/d/1oqBm4P-KvkuDBemukSRyCpXDiJJQIdVjsapcDXIH
 
 | อาการ | สาเหตุ | แก้ |
 |---|---|---|
-| 404 ทุก action | deployment ถูกลบ/URL เปลี่ยน | หา URL ใหม่ (ขั้นที่ 1) |
-| 403 | สิทธิ์เข้าถึงไม่ใช่ "ทุกคน" | ขั้นที่ 3 → แก้ "การเข้าถึง" |
-| เว็บโชว์ตัวเลขปลอม | ต่อเซิร์ฟเวอร์ไม่ได้ | ใส่ URL ใหม่ (ขั้นที่ 4) |
-| "ไม่รู้จักคำสั่ง: product.list.all" | deploy โค้ดเก่าไป | วางโค้ดใหม่ (ขั้นที่ 2) + deploy |
-| หน้า "ดูชีต" ว่าง | ยังไม่ได้ deploy | deploy แล้วรีเฟรช |
+| เว็บค้างที่ "กำลังโหลดสินค้า…" | เซิร์ฟเวอร์ 404 ชั่วคราว | รอ 1-2 นาที → Ctrl+Shift+R |
+| เว็บขึ้น "โหลดข้อมูลสินค้าไม่สำเร็จ" | ต่อเซิร์ฟเวอร์ไม่ได้ | ตรวจว่า deploy แล้ว + Access = ทุกคน |
+| สินค้าไม่ขึ้นเว็บ | `status` ไม่ใช่ `published`/`WIP` | แก้ในชีต |
+| สินค้า WIP ไม่อยู่ท้ายสุด | เซิร์ฟเวอร์เก่า | deploy ใหม่ |
+| จำนวนหน้าว่าง | `pages` เป็นข้อความ → ต้อง deploy เวอร์ชันใหม่ | deploy ใหม่ |
+| เห็นชื่อคอลัมน์ผิด | deploy เวอร์ชันเก่า | deploy ใหม่ |
+| ยอดขายเป็น 0 | คอลัมน์ `sales` ในชีตยังไม่ได้ลิงก์ | แก้สูตรในชีต |
 
 ---
 
-## 🎯 สิ่งที่รอจากเจ้าของร้าน
+## 🔐 เรื่องความปลอดภัยที่ต้องทำ (ทำแล้ว = ดีมาก)
 
-| # | ขอ | ทำไม |
-|---|---|---|
-| 1 | **URL ใหม่** | 🔴 เว็บกำลังโชว์ข้อมูลปลอม |
-| 2 | **สูตรในคอลัมน์ `document_type`** | จะได้เขียนโค้ดให้ตรงกับที่คุณต้องการ |
+```
+⚠️ ลบ GitHub Personal Access Token ที่ใช้ push โค้ด
+   GitHub → Settings → Developer settings → Personal access tokens → Delete
+   (ใช้ไปหลายครั้งแล้ว — ควรลบทันที)
+```

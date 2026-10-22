@@ -5,13 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --config vite.shop.config.ts",
-    "dev:admin": "vite --config vite.admin.config.ts",
-    "build": "tsc -b && npm run build:shop && npm run build:admin",
+    "build": "tsc -b && npm run build:shop",
     "build:shop": "vite build --config vite.shop.config.ts",
-    "build:admin": "vite build --config vite.admin.config.ts",
     "lint": "oxlint",
-    "preview": "vite preview --config vite.shop.config.ts",
-    "preview:admin": "vite preview --config vite.admin.config.ts"
+    "preview": "vite preview --config vite.shop.config.ts"
   },
   "dependencies": {
     "firebase": "^13.0.0",

@@ -193,43 +193,9 @@ export async function apiListProducts() {
   }>(`${apiUrl()}?action=products.list`);
 }
 
-/** สินค้าทั้งหมดรวม draft (เฉพาะแอดมิน) */
-export function apiListProductsAll(email: string, token: string) {
-  return call('product.list.all', { email, token });
-}
-
-/** เพิ่ม/แก้สินค้าลงชีต (เฉพาะแอดมิน) */
-export function apiUpsertProduct(
-  email: string,
-  token: string,
-  product: Record<string, unknown>,
-) {
-  return call('product.upsert', { email, token, product });
-}
-
-/** ซ่อน/ลบสินค้า (เฉพาะแอดมิน) */
-export function apiDeleteProduct(email: string, token: string, id: string) {
-  return call('product.delete', { email, token, id });
-}
-
-/** แก้ค่าตั้งร้าน เช่น ลิงก์ LINE OA (เฉพาะแอดมิน) */
-export function apiSetConfig(
-  email: string,
-  token: string,
-  key: string,
-  value: string,
-) {
-  return call('config.set', { email, token, key, value });
-}
-
 export async function apiGetConfig() {
   const res = await fetch(`${apiUrl()}?action=config`);
   return (await res.json()) as Record<string, string>;
-}
-
-/** 🧪 ดูโครงสร้างชีตทั้งหมด (เฉพาะแอดมิน) — ชื่อแท็บ/คอลัมน์/สูตร/dropdown */
-export function apiSheetInspect(email: string, token: string) {
-  return call('sheet.inspect', { email, token });
 }
 
 /**
@@ -243,30 +209,4 @@ export async function apiSheetStructure() {
     error?: string;
     sheets?: unknown[];
   };
-}
-
-// ============================ ⭐ สินค้าที่ถูกใจ ============================
-
-/** ดึงดาวถูกใจของผู้ใช้ที่ล็อกอินอยู่ (ผูกกับอีเมล) */
-export function apiFavoritesList(email: string, token: string) {
-  return call('favorite.list', { email, token });
-}
-
-/** กดถูกใจ */
-export function apiFavoriteAdd(email: string, token: string, productId: string) {
-  return call('favorite.add', { email, token, product_id: productId });
-}
-
-/** เอาดาวออก */
-export function apiFavoriteRemove(email: string, token: string, productId: string) {
-  return call('favorite.remove', { email, token, product_id: productId });
-}
-
-/** รวมดาวที่ค้างในเบราว์เซอร์เข้าบัญชี (ตอนล็อกอินครั้งแรก) */
-export function apiFavoritesSync(
-  email: string,
-  token: string,
-  productIds: string[],
-) {
-  return call('favorite.sync', { email, token, product_ids: productIds });
 }

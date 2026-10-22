@@ -29,7 +29,6 @@ const ADMIN_NAME = 'เจ้าของร้าน';
 const SHEET_PRODUCTS = 'Products';
 const SHEET_CONFIG = 'Config';
 const SHEET_USERS = 'user_id';
-const SHEET_FAVORITES = 'Favorites';
 
 // 🗂️ หมวดหมู่ — ตรงกับ dropdown ในชีต (แก้ในชีตได้ แต่ถ้าเพิ่มค่าใหม่ต้องแจ้ง)
 const CATEGORY_LIST = ['ข้อสอบ', 'หนังสือ', 'Flashcard', 'อื่นๆ'];
@@ -58,13 +57,6 @@ const DOC_LANG_LIST = ['th', 'en', 'other'];
 const DOC_TYPE_LIST = ['exam', 'worksheet', 'book', 'study_guide', 'other'];
 
 /** สถานะคำสั่งซื้อที่ใช้ได้ */
-const ORDER_STATUS = {
-  NEW: 'pending_payment',   // รอโอนเงิน
-  PAID: 'paid',             // ผู้ดูแลยืนยันแล้ว
-  REJECTED: 'rejected',     // ตรวจไม่ผ่าน
-  CANCELLED: 'cancelled'   // ยกเลิก
-};
-
 // ===================== สร้างชีตครั้งแรก (รัน 1 ครั้ง) =====================
 
 /**
@@ -90,9 +82,6 @@ function setupSheets() {
   _ensureColumns(SHEET_USERS, ['token', 'login_method']);
   // ⭐ แท็บสินค้าที่ถูกใจ — ผูกกับอีเมลผู้ใช้
   //    ล็อกอินใหม่/เปลี่ยนเครื่อง → ดาวยังอยู่
-  _ensureSheet(SHEET_FAVORITES, [
-    'fav_id', 'email', 'User_id', 'product_id', 'created_at'
-  ]);
   _seedConfig();
   _seedProducts();
 
@@ -225,44 +214,10 @@ function doPost(e) {
 
     if (action === 'user.check') return _json(_checkUser(body.email));
 
-    // --- ⭐ สินค้าที่ถูกใจ (ผูกกับอีเมลผู้ใช้) ---
-    if (action === 'favorite.list') return _json(_myFavorites(body));
-    if (action === 'favorite.add') return _json(_toggleFavorite(body, true));
-    if (action === 'favorite.remove') return _json(_toggleFavorite(body, false));
-    if (action === 'favorite.sync') return _json(_syncFavorites(body));
-
-    // --- 🧪 ตรวจโครงสร้างชีต (เฉพาะแอดมิน) ---
-    if (action === 'sheet.inspect') {
-      const insp = _requireAdmin(body);
-      if (!insp.ok) return _json(insp);
-      return _json(_sheetInspector());
-    }
-
     // --- 📋 โครงสร้างชีตแบบสาธารณะ (ไม่ต้องล็อกอิน) ---
     //    คืนแค่ "ชื่อแท็บ + ชื่อคอลัมน์ + dropdown" ไม่มีข้อมูลลูกค้า/ยอดขาย
-    //    ใช้เพื่อดูว่าเว็บอ่านชีตถูกช่องไหม โดยไม่ต้องเปิดสิทธิ์ admin
     if (action === 'sheet.structure') {
       return _json(_sheetStructure());
-    }
-
-    // --- ส่วนแอดมิน (ต้องเป็น session ของเจ้าของร้านที่ยืนยันแล้ว) ---
-    const admin = _requireAdmin(body);
-    if (!admin.ok) return _json(admin);
-
-    if (action === 'product.upsert') {
-      return _json(_upsertProduct(body.product || {}, admin.email));
-    }
-    if (action === 'product.delete') {
-      return _json(_deleteProduct(body.id));
-    }
-    if (action === 'product.list.all') {
-      return _json(_listProductsAll());
-    }
-    if (action === 'config.set') {
-      return _json(_setConfig(body.key, body.value));
-    }
-    if (action === 'server.url.set') {
-      return _json(_setServerUrl(body.url));
     }
 
     return _json({ ok: false, error: 'ไม่รู้จักคำสั่ง: ' + action });
@@ -691,22 +646,6 @@ function _isAdminEmail(email) {
 }
 
 /**
- * ตรวจสิทธิ์ผู้ดูแลจากคำขอ
- * คืน {ok:false} ถ้าไม่มี session หรืออีเมลไม่ใช่เจ้าของร้าน
- */
-function _requireAdmin(body) {
-  const sess = _session(body);
-  if (!sess.ok) {
-    return { ok: false, error: 'กรุณาเข้าสู่ระบบก่อน' };
-  }
-  if (!_isAdminEmail(sess.user.email)) {
-    return { ok: false, error: 'บัญชีนี้ไม่มีสิทธิ์ผู้ดูแลร้าน' };
-  }
-  sess.email = sess.user.email;
-  return sess;
-}
-
-/**
  * ค่าที่หน้าเว็บต้องรู้ตอนเริ่มทำงาน
  *
  * 🛡 ค่าชุดนี้เป็นค่าสาธารณะทั้งหมด (Firebase Web config)
@@ -734,21 +673,6 @@ function getPublicConfig() {
       appId: FIREBASE_APP_ID
     }
   };
-}
-
-/** ใช้ตอนทดสอบเท่านั้น: ดูสถานะระบบ */
-function adminStatus() {
-  return {
-    adminEmails: ADMIN_EMAILS,
-    firebaseProjectId: _firebaseProjectId() || '(ยังไม่ได้ตั้ง)',
-    bankingOpen: _isOpen(),
-    users: _readSheet(SHEET_USERS).length
-  };
-}
-
-/** ร้านเปิดรับคำสั่งซื้อหรือยัง (ตั้งค่าในชีต Config ได้) */
-function _isOpen() {
-  return String(_getConfig('banking_open')) === 'yes';
 }
 
 // ============================ อ่านข้อมูล ============================
@@ -831,79 +755,6 @@ function _productDetail(id) {
   const found = all.products.filter(function (p) { return p.id === id; })[0];
   if (!found) return { ok: false, error: 'ไม่พบสินค้า' };
   return { ok: true, product: found };
-}
-
-/**
- * 🧪 ดูโครงสร้างชีตทั้งหมด (สำหรับนักพัฒนา / เจ้าของร้านตรวจงาน)
- *
- * คืน: รายชื่อแท็บ + ชื่อคอลัมน์ + สูตร + dropdown + ตัวอย่างข้อมูล
- * 🔒 ต้องเป็นผู้ดูแลร้าน (ต้องมี session)
- */
-function _sheetInspector() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheets = [];
-
-  for (let i = 0; i < ss.getSheets().length; i++) {
-    const sh = ss.getSheets()[i];
-    const name = sh.getName();
-    const lastRow = sh.getLastRow();
-    const lastCol = sh.getLastColumn();
-
-    if (lastRow === 0) {
-      sheets.push({ name: name, empty: true });
-      continue;
-    }
-
-    const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
-      return String(h || '');
-    });
-
-    // 🧮 สูตรในแถว 1-3 (มักเป็นที่ทำ dropdown/สูตรคำนวณ)
-    const sampleRows = Math.min(3, lastRow);
-    const formulas = sh.getRange(1, 1, sampleRows, lastCol).getFormulas();
-    const values = sh.getRange(1, 1, sampleRows, lastCol).getValues();
-
-    // 🔽 dropdown (data validation) ของแต่ละคอลัมน์
-    const validations = [];
-    for (let c = 0; c < lastCol; c++) {
-      try {
-        const v = sh.getRange(2, c + 1).getDataValidation();
-        if (v) {
-          validations.push({
-            column: headers[c] || ('col' + (c + 1)),
-            type: String(v.getCriteriaType() || ''),
-            values: v.getCriteriaValues() || []
-          });
-        }
-      } catch (e) {
-        // ช่องนี้ไม่มี validation — ข้าม
-      }
-    }
-
-    // 📋 แถวตัวอย่าง
-    const rows = [];
-    for (let r = 1; r < sampleRows; r++) {
-      const row = {};
-      for (let c = 0; c < lastCol; c++) {
-        const key = headers[c] || ('col' + (c + 1));
-        const f = String(formulas[r][c] || '');
-        const v = values[r][c];
-        row[key] = f.charAt(0) === '=' ? f : v;
-      }
-      rows.push(row);
-    }
-
-    sheets.push({
-      name: name,
-      rowCount: lastRow - 1,
-      columnCount: lastCol,
-      headers: headers,
-      validations: validations,
-      sampleRows: rows
-    });
-  }
-
-  return { ok: true, sheets: sheets };
 }
 
 /**
@@ -1020,269 +871,6 @@ function _cellRef(row, col) {
   return letters + row;
 }
 
-/**
- * ⭐ สินค้าที่ผู้ใช้กดถูกใจ (ผูกกับอีเมล)
- *
- * 🔒 ต้องยืนยันตัวตนด้วย email + token เสมอ
- *    (ห้ามดูดาวคนอื่นได้ แม้จะรู้อีเมล)
- *
- * เก็บไว้ในชีต → ล็อกอินใหม่ / เปลี่ยนเครื่อง / ล้างเบราว์เซอร์ ดาวยังอยู่
- */
-function _myFavorites(body) {
-  const sess = _session(body);
-  if (!sess.ok) return sess;
-
-  // ℹ️ ถ้ายังไม่มีแท็บ → _readSheet คืน [] อัตโนมัติ ไม่ error
-  //    (แท็บจะถูกสร้างตอนกดดาวครั้งแรก ซึ่งอยู่ใน lock)
-
-  const email = sess.user.email.toLowerCase();
-  const rows = _readSheet(SHEET_FAVORITES).filter(function (r) {
-    return String(r.email || '').toLowerCase() === email;
-  });
-
-  const items = rows.map(function (r) {
-    return {
-      favId: r.fav_id,
-      productId: r.product_id,
-      createdAt: _fmtDate(r.created_at)
-    };
-  });
-
-  return {
-    ok: true,
-    items: items,
-    productIds: items.map(function (x) { return x.productId; })
-  };
-}
-
-/**
- * ⭐ เพิ่ม/ลบดาวถูกใจ
- * @param {boolean} on true = กดถูกใจ, false = เอาออก
- */
-function _toggleFavorite(body, on) {
-  const sess = _session(body);
-  if (!sess.ok) return sess;
-
-  const email = sess.user.email.toLowerCase();
-  const productId = String(body.product_id || '').trim();
-  if (!productId) return { ok: false, error: 'ไม่ระบุสินค้า' };
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    _ensureSheet(SHEET_FAVORITES, [
-      'fav_id', 'email', 'User_id', 'product_id', 'created_at'
-    ]);
-    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_FAVORITES);
-    const headers = _header(SHEET_FAVORITES);
-    const data = sh.getDataRange().getValues();
-    const hIdx = _findHeaderRow(data);
-    const cEmail = _colIndex(headers, 'email');
-    const cProduct = _colIndex(headers, 'product_id');
-    const cId = _colIndex(headers, 'fav_id');
-    const cUser = _colIndex(headers, 'User_id');
-    const cAt = _colIndex(headers, 'created_at');
-
-    let found = -1;
-    for (let i = hIdx + 1; i < data.length; i++) {
-      if (String(data[i][cEmail] || '').toLowerCase() === email &&
-          String(data[i][cProduct]) === productId) {
-        found = i + 1;
-        break;
-      }
-    }
-
-    if (on) {
-      if (found === -1) {
-        const row = [];
-        for (let i = 0; i < headers.length; i++) row.push('');
-        if (cId !== -1) row[cId] = Utilities.getUuid();
-        if (cEmail !== -1) row[cEmail] = email;
-        if (cUser !== -1) row[cUser] = sess.user.user_id || '';
-        if (cProduct !== -1) row[cProduct] = productId;
-        if (cAt !== -1) row[cAt] = new Date();
-        sh.appendRow(row);
-      }
-      return { ok: true, on: true, productId: productId, message: 'เพิ่มดาวถูกใจแล้ว' };
-    }
-
-    if (found !== -1) {
-      sh.deleteRow(found);
-    }
-    return { ok: true, on: false, productId: productId, message: 'เอาดาวออกแล้ว' };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/**
- * ⭐ รวมดาวถูกใจจากเบราว์เซอร์เข้าบัญชี (ตอนล็อกอินครั้งแรก)
- * ใช้กรณีคนกดดาวตอนยังไม่ได้ล็อกอิน แล้วค่อยมาล็อกอินทีหลัง
- */
-function _syncFavorites(body) {
-  const sess = _session(body);
-  if (!sess.ok) return sess;
-
-  const email = sess.user.email.toLowerCase();
-  const list = Array.isArray(body.product_ids) ? body.product_ids : [];
-  if (list.length === 0) return { ok: true, merged: 0, productIds: [] };
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    _ensureSheet(SHEET_FAVORITES, [
-      'fav_id', 'email', 'User_id', 'product_id', 'created_at'
-    ]);
-    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_FAVORITES);
-    const headers = _header(SHEET_FAVORITES);
-    const data = sh.getDataRange().getValues();
-    const hIdx = _findHeaderRow(data);
-    const cEmail = _colIndex(headers, 'email');
-    const cProduct = _colIndex(headers, 'product_id');
-
-    const existing = {};
-    for (let i = hIdx + 1; i < data.length; i++) {
-      if (String(data[i][cEmail] || '').toLowerCase() === email) {
-        existing[String(data[i][cProduct])] = true;
-      }
-    }
-
-    let merged = 0;
-    for (const pid of list) {
-      const productId = String(pid || '').trim();
-      if (!productId || existing[productId]) continue;
-      const row = [];
-      for (let i = 0; i < headers.length; i++) row.push('');
-      const cFav = _colIndex(headers, 'fav_id');
-      const cUsr = _colIndex(headers, 'User_id');
-      const cCre = _colIndex(headers, 'created_at');
-      if (cFav !== -1) row[cFav] = Utilities.getUuid();
-      if (cEmail !== -1) row[cEmail] = email;
-      if (cUsr !== -1) row[cUsr] = sess.user.user_id || '';
-      if (cProduct !== -1) row[cProduct] = productId;
-      if (cCre !== -1) row[cCre] = new Date();
-      sh.appendRow(row);
-      existing[productId] = true;
-      merged++;
-    }
-
-    return {
-      ok: true,
-      merged: merged,
-      productIds: Object.keys(existing)
-    };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/**
- * รายการสินค้าทั้งหมดรวมที่ยังไม่เผยแพร่ (เฉพาะแอดมิน)
- * ใช้ในหน้าแอดมิน เพื่อให้เห็นสินค้าที่ตั้งเป็น draft ด้วย
- */
-function _listProductsAll() {
-  const rows = _readSheet(SHEET_PRODUCTS);
-  const out = [];
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i];
-    out.push({
-      id: r.product_id,
-      title: r.title,
-      description: r.description,
-      longDescription: r.long_description,
-      category: r.category,
-      documentLanguage: r.document_language,
-      descriptionLanguage: r.description_language,
-      documentType: r.document_type,
-      tags: String(r.tags || '').split(',').map(function (s) { return s.trim(); })
-        .filter(Boolean),
-      price: Math.round(Number(r.price_satang || 0) / 100),
-      oldPrice: r.old_price_satang === '' || r.old_price_satang == null
-        ? undefined
-        : Math.round(Number(r.old_price_satang) / 100),
-      pages: _pagesVal(r.pages),
-      fileSize: r.file_size,
-      rating: Number(r.rating || 0),
-      sales: Number(r.sales || 0),
-      coverColor: r.cover_color || '#1d4ed8',
-      status: String(r.status || 'published'),
-      createdAt: _fmtDate(r.created_at)
-    });
-  }
-  return { ok: true, products: out };
-}
-
-/**
- * ตั้งค่า URL ของเซิร์ฟเวอร์เอง (เฉพาะแอดมิน)
- *
- * 🔴 ช่วงชักช่วง: ถ้าเปลี่ยน URL ของ Apps Script (เช่น deploy ใหม่)
- *    เว็บจะเรียก URL เก่า = 404 = ข้อมูลปลอม
- *    → ให้แก้ในหน้าเว็บนี้ได้เลย ไม่ต้องแก้โค้ด
- *
- * ⚠️ ข้อจำกัด: เว็บต้องรู้ URL ก่อนจะไปอ่านชีตได้
- *    → จึงต้องเก็บ URL ไว้ใน localStorage ของเบราว์เซอร์ด้วย
- */
-function _setServerUrl(url) {
-  const u = String(url || '').trim();
-  if (!u) return { ok: false, error: 'ไม่ได้ใส่ URL' };
-  if (u.indexOf('script.google.com/macros/') === -1) {
-    return { ok: false, error: 'URL ไม่ถูกต้อง — ต้องเป็นลิงก์ /exec ของ Apps Script' };
-  }
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    const cfg = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CONFIG);
-    const data = cfg.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]) === 'server_url') {
-        cfg.getRange(i + 1, 2).setValue(u);
-        return { ok: true, message: 'บันทึก URL แล้ว', server_url: u };
-      }
-    }
-    cfg.appendRow(['server_url', u]);
-    return { ok: true, message: 'เพิ่ม URL แล้ว', server_url: u };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/**
- * แก้ค่าตั้งร้านในแท็บ Config (เฉพาะแอดมิน)
- * ใช้ตั้งลิงก์ LINE OA / ชื่อร้าน โดยไม่ต้องแก้โค้ด
- */
-function _setConfig(key, value) {
-  const k = String(key || '').trim();
-  if (!k) return { ok: false, error: 'ไม่ระบุคีย์' };
-
-  // 🛡 อนุญาตเฉพาะคีย์ที่กำหนดไว้ กันเขียนทับค่าอื่นมั่ว
-  const ALLOWED = [
-    'store_name', 'contact_line', 'contact_email', 'line_oa_link',
-    'promptpay_phone', 'promptpay_name', 'banking_open'
-  ];
-  if (ALLOWED.indexOf(k) === -1) {
-    return { ok: false, error: 'ไม่อนุญาตให้แก้คีย์นี้' };
-  }
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    const cfg = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CONFIG);
-    const data = cfg.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]) === k) {
-        cfg.getRange(i + 1, 2).setValue(String(value || ''));
-        return { ok: true, message: 'บันทึกค่าแล้ว', key: k };
-      }
-    }
-    // ยังไม่มีคีย์นี้ → เพิ่มใหม่
-    cfg.appendRow([k, String(value || '')]);
-    return { ok: true, message: 'เพิ่มค่าใหม่แล้ว', key: k };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
 function _getConfig(key) {
   const rows = _readSheet(SHEET_CONFIG);
   for (let i = 0; i < rows.length; i++) {
@@ -1293,168 +881,7 @@ function _getConfig(key) {
 
 // ============================ เขียนข้อมูล ============================
 
-/**
- * เพิ่ม/แก้สินค้า (เฉพาะแอดมิน)
- *
- * ⚠️ เขียนโดย "ชื่อคอลัมน์" ไม่ใช่ตำแหน่ง
- *    ถ้าเขียนตามตำแหน่ง (index) แล้วเจ้าของสลับคอลัมน์ในชีต
- *    ข้อมูลจะไปลงผิดช่องทันที เช่น ราคาไปลงช่องชื่อสินค้า
- */
-function _upsertProduct(p) {
-  const id = String(p.id || '').trim();
-  const title = String(p.title || '').trim();
-  if (!id) return { ok: false, error: 'ไม่มีรหัสสินค้า' };
-  if (!title) return { ok: false, error: 'ไม่มีชื่อสินค้า' };
-
-  const priceSatang = Math.round(Number(p.price || 0) * 100);
-  if (priceSatang < 0) return { ok: false, error: 'ราคาไม่ถูกต้อง' };
-
-  // 🗺 ค่าที่จะเขียน ผูกกับ "ชื่อคอลัมน์" เท่านั้น
-  const values = {
-    product_id: id,
-    title: title,
-    description: String(p.description || ''),
-    long_description: String(p.longDescription || ''),
-    // ⚠️ ถ้าค่าที่ส่งมาไม่อยู่ในรายการ (เช่นชีตยังมีค่าเก่าอยู่)
-    //    → เก็บค่าเดิมไว้ อย่าเดาแทน ไม่งั้นข้อมูลจะเพี้ยนเงียบๆ
-    category: CATEGORY_LIST.indexOf(p.category) !== -1 ? p.category : String(p.category || ''),
-    document_language: DOC_LANG_LIST.indexOf(p.documentLanguage) !== -1 ? p.documentLanguage : 'th',
-    description_language: DOC_LANG_LIST.indexOf(p.descriptionLanguage) !== -1 ? p.descriptionLanguage : 'th',
-    document_type: DOC_TYPE_LIST.indexOf(p.documentType) !== -1 ? p.documentType : 'other',
-    tags: Array.isArray(p.tags) ? p.tags.join(',') : String(p.tags || ''),
-    price_satang: priceSatang,
-    old_price_satang: p.oldPrice ? Math.round(Number(p.oldPrice) * 100) : '',
-    pages: (function () {
-      const v = _pagesVal(p.pages);
-      if (typeof v === 'number') return Math.max(1, Math.round(v));
-      return v;
-    })(),
-    file_size: String(p.fileSize || 'PDF'),
-    rating: Number(p.rating || 0),
-    sales: Number(p.sales || 0),
-    cover_color: String(p.coverColor || '#1d4ed8'),
-    // 📊 สถานะจาก dropdown ในชีต
-    //    published = แสดงบนเว็บ / WIP, Paused, Discontinued = ไม่แสดง
-    //    ⚠️ ค่าเริ่มต้นต้องเป็น published ไม่ใช่ draft
-    //       เพราะ _listProducts กรองเฉพาะ published → ถ้าเป็นอื่น สินค้าจะไม่โผล่บนเว็บเลย
-    status: PRODUCT_STATUS_LIST.indexOf(p.status) !== -1 ? p.status : 'published',
-    created_at: new Date()
-  };
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_PRODUCTS);
-    const headers = _header(SHEET_PRODUCTS);
-    const data = sh.getDataRange().getValues();
-    const hIdx = _findHeaderRow(data);
-    const cId = _colIndex(headers, 'product_id');
-
-    let found = -1;
-    for (let i = hIdx + 1; i < data.length; i++) {
-      if (cId !== -1 && String(data[i][cId]) === id) { found = i + 1; break; }
-    }
-
-    if (found > 0) {
-      // แก้ไข: เขียนทีละคอลัมน์ตามชื่อ (ไม่ทับ created_at เดิม)
-      //
-      // 🛡 ข้ามช่องที่มีสูตรอยู่
-      //    เจ้าของร้านใช้สูตรในชีต (เช่นคำนวณยอดรวม)
-      //    ถ้าเขียนทับ → สูตรหายถาวร แก้ยากมาก
-      //    → ให้ระบบข้ามไป แล้วแจ้งว่าข้ามคอลัมน์ไหนบ้าง
-      const formulas = sh.getRange(found, 1, 1, headers.length).getFormulas()[0] || [];
-      const skipped = [];
-
-      for (const name in values) {
-        if (name === 'created_at') continue;
-        const c = _colIndex(headers, name);
-        if (c === -1) continue;
-
-        // 🔒 ช่องนี้มีสูตรอยู่ → ห้ามเขียนทับ
-        if (String(formulas[c] || '').charAt(0) === '=') {
-          skipped.push(name);
-          continue;
-        }
-
-        sh.getRange(found, c + 1).setValue(values[name]);
-      }
-
-      const note = skipped.length
-        ? ' (ข้ามช่องที่มีสูตร: ' + skipped.join(', ') + ')'
-        : '';
-      return { ok: true, message: 'บันทึกการแก้ไขแล้ว' + note, id: id, skipped: skipped };
-    }
-
-    // เพิ่มใหม่: เตรียมแถวตามจำนวนคอลัมน์จริงในชีต แล้วเขียนตามชื่อ
-    const cols = headers.length;
-    const row = [];
-    for (let i = 0; i < cols; i++) row.push('');
-    for (const name in values) {
-      const c = _colIndex(headers, name);
-      if (c !== -1) row[c] = values[name];
-    }
-    sh.appendRow(row);
-    return { ok: true, message: 'เพิ่มสินค้าแล้ว', id: id };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/**
- * ลบสินค้า (เฉพาะแอดมิน)
- * 🛡 ลบจริงจากชีต แต่เก็บประวัติไว้ในคอมเมนต์ช่องข้อมูลเดิม
- */
-function _deleteProduct(productId) {
-  const id = String(productId || '').trim();
-  if (!id) return { ok: false, error: 'ไม่มีรหัสสินค้า' };
-
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
-  try {
-    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_PRODUCTS);
-    const headers = _header(SHEET_PRODUCTS);
-    const data = sh.getDataRange().getValues();
-    const hIdx = _findHeaderRow(data);
-    const cId = _colIndex(headers, 'product_id');
-    const cStatus = _colIndex(headers, 'status');
-
-    for (let i = hIdx + 1; i < data.length; i++) {
-      if (cId !== -1 && String(data[i][cId]) === id) {
-        // ปัดสถานะเป็น archived แทนการลบแถวทิ้ง
-        // → ข้อมูลออเดอร์เก่าที่อ้างถึงสินค้านี้ยังอ้างอิงได้
-        if (cStatus !== -1) {
-          sh.getRange(i + 1, cStatus + 1).setValue('Discontinued');
-          return { ok: true, message: 'ซ่อนสินค้าจากหน้าเว็บแล้ว (เก็บประวัติไว้)', id: id };
-        }
-        sh.deleteRow(i + 1);
-        return { ok: true, message: 'ลบสินค้าแล้ว', id: id };
-      }
-    }
-    return { ok: false, error: 'ไม่พบสินค้านี้' };
-  } finally {
-    lock.releaseLock();
-  }
-}
-
 // ============================ ตัวช่วยเล็ก ๆ ============================
-
-function _newId(prefix) {
-  const d = new Date();
-  const pad = function (n) { return String(n).padStart(2, '0'); };
-  const stamp = d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' +
-    pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
-  return prefix + '-' + stamp + '-' +
-    Utilities.getUuid().split('-')[0].toUpperCase();
-}
-
-/** แฮชโทเคน (เก็บแค่แฮช ไม่เก็บโทเคนจริงไว้ในชีต) */
-function _hash(text) {
-  const raw = Utilities.computeDigest(
-    Utilities.DigestAlgorithm.SHA_256, String(text), Utilities.Charset.UTF_8);
-  return raw.map(function (b) {
-    return ('0' + (b & 0xFF).toString(16)).slice(-2);
-  }).join('');
-}
 
 /**
  * 🏷️ ชื่อคอลัมน์มาตรฐาน + ชื่อสำรองที่ยอมรับได้
@@ -1620,11 +1047,6 @@ function _readSheet(sheetName) {
     out.push(obj);
   }
   return out;
-}
-
-function _appendRow(sheetName, values) {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
-  sh.appendRow(values);
 }
 
 function _fmtDate(v) {
