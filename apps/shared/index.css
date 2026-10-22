@@ -34,7 +34,7 @@ a { color: inherit; }
 .brand-mark { background: var(--brand); color: #fff; font-weight: 800; padding: 8px 10px; border-radius: 10px; }
 .brand-logo { width: 60px; height: 60px; border-radius: 10px; object-fit: cover; background: #fff; }
 .brand-text { font-weight: 800; font-size: 1.7rem; display: flex; flex-direction: column; line-height: 1.1; }
-.brand-text small { font-weight: 500; color: var(--muted); font-size: 0.85rem; }
+.brand-text small { font-weight: 500; color: var(--muted); font-size: 15px; }
 .nav-links { display: flex; gap: 4px; margin-inline-start: 8px; }
 .nav-links a { padding: 8px 12px; border-radius: 10px; text-decoration: none; color: #334155; font-weight: 600; }
 .nav-links a.active, .nav-links a:hover { background: #dbeafe; color: var(--brand-dark); }
@@ -126,12 +126,12 @@ a { color: inherit; }
 .cover { min-height: 230px; color: #fff; padding: 16px; display: flex; flex-direction: column; gap: 8px; text-decoration: none; }
 .cover-pdf { background: rgba(255,255,255,.25); align-self: flex-start; font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; }
 .cover-pdf.big { font-size: 0.85rem; }
-.cover-title { font-weight: 800; font-size: 1.08rem; line-height: 1.4; }
-.cover-meta { font-size: 0.8rem; opacity: 0.9; }
+.cover-title { font-weight: 800; font-size: 21px; line-height: 1.35; }
+.cover-meta { font-size: 17px; opacity: 0.9; }
 .card-body { padding: 12px 14px 14px; display: grid; gap: 8px; }
 .pill { display: inline-block; background: #eef2ff; color: #3730a3; font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; justify-self: start; }
 .pill-hot { background: #fef3c7; color: #92400e; }
-.card-title { font-weight: 800; text-decoration: none; line-height: 1.4; }
+.card-title { font-weight: 800; font-size: 18px; text-decoration: none; line-height: 1.4; }
 .card-title:hover { color: var(--brand-dark); }
 .card-desc { color: var(--muted); font-size: 0.88rem; margin: 0; min-height: 2.6em; }
 .card-meta { color: var(--muted); font-size: 0.82rem; display: flex; gap: 6px; }
@@ -198,7 +198,10 @@ a { color: inherit; }
   /* แถวเดียวกับชื่อร้าน: โลโก้ซ้าย + ปุ่มตะกร้า/ล็อกอิน/สมัครชิดขวา (ย่อปุ่มลง ไม่ตัดข้อความ) */
   .brand-logo { width: 48px; height: 48px; border-radius: 12px; }
   .brand-text { font-size: 1.35rem; }
-  .brand-text small { font-size: 0.8rem; }
+  .brand-text small { font-size: 13px; }
+  .cover-title { font-size: 18px; }
+  .cover-meta { font-size: 14px; }
+  .card-title { font-size: 16px; }
   .nav-actions { flex: 1 1 auto; justify-content: flex-end; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .nav-actions::-webkit-scrollbar { display: none; }
   .nav-actions .btn { padding: 7px 10px; font-size: 0.8rem; white-space: nowrap; flex: none; }
