@@ -10,7 +10,7 @@
 |---|---|
 | **เว็บร้าน** | https://pdf-digimart.pages.dev |
 | หน้าร้าน (ทุกสินค้า) | https://pdf-digimart.pages.dev/#/shop |
-| หน้าโครงสร้างชีต | https://pdf-digimart.pages.dev/#/sheet |
+| ~~หน้าโครงสร้างชีต~~ | ถูกลบแล้ว (22 ต.ค. 2026) |
 | หน้าล็อกอิน (รอใช้ตอนเรทติ้ง) | https://pdf-digimart.pages.dev/#/login |
 | **ชีต** | https://docs.google.com/spreadsheets/d/1oqBm4P-KvkuDBemukSRyCpXDiJJQIdVjsapcDXIH4/edit |
 | **Apps Script (โค้ด)** | https://script.google.com/home/projects/18-FRt1vHs0-r91OaCaaHNxQE4KIYfSSMULYfS-xhRcj-pJPiSxui3x/edit |
