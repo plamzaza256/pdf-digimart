@@ -18,6 +18,8 @@ export interface Product {
   tags: string[];
   /** 📝 หมายเหตุจากเจ้าของร้าน (คอลัมน์ admin_note ในชีต Products) */
   adminNote?: string;
+  /** 🖼️ ลิงก์รูปปก (คอลัมน์ cover_url ในชีต Products) */
+  coverUrl?: string;
   /**
    * สถานะการเผยแพร่ (จาก dropdown ในชีต)
    *   published  → แสดงบนเว็บ

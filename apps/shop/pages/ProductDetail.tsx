@@ -1,10 +1,50 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useShop } from '../store/shop';
 import { formatPrice, pagesLabel } from '../data/products';
 import OrderLineButton from '@shared/components/OrderLineButton';
 import RatingModal from '../components/RatingModal';
 import { parseFileSize } from '@shared/lib/fileSize';
+import { coverUrlFromFiles, coverUrlFromSheet, sampleUrl } from '@shared/lib/media';
+
+/**
+ * 👁️ ตัวอย่างไฟล์ PDF
+ *
+ * ถ้ามีไฟล์ public/samples/{รหัสสินค้า}.pdf → แสดงฝังในหน้า
+ * ถ้าไม่มี → ซ่อนทั้งกล่อง (ไม่มีข้อความรบกวน)
+ */
+function SamplePreview({ productId }: { productId: string }) {
+  const [has, setHas] = useState(false);
+  const url = sampleUrl(productId);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(url, { method: 'HEAD' })
+      .then((r) => {
+        if (!cancelled) setHas(r.ok);
+      })
+      .catch(() => {
+        if (!cancelled) setHas(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  if (!has) return null;
+
+  return (
+    <div className="preview-box">
+      <div className="preview-title">👁️ ตัวอย่างไฟล์</div>
+      <iframe
+        className="preview-frame"
+        src={url}
+        title="ตัวอย่างไฟล์"
+        loading="lazy"
+      />
+    </div>
+  );
+}
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -12,6 +52,8 @@ export default function ProductDetail() {
   const p = products.find((x) => x.id === id);
   // ⭐ ป๊อปอัพให้คะแนน
   const [rateOpen, setRateOpen] = useState(false);
+  // 🖼️ มีรูปปกจริงไหม → เปลี่ยนพื้นหลังเป็นสีขาว ข้อความสีเข้ม
+  const [hasImg, setHasImg] = useState(false);
   const [myRating, setMyRating] = useState<number | null>(null);
 
   if (!p) {
@@ -31,7 +73,17 @@ export default function ProductDetail() {
     <div className="container page detail">
       <Link to="/shop" className="link">← กลับหน้าร้าน</Link>
       <div className="detail-grid">
-        <div className="detail-cover" style={{ background: p.coverColor }}>
+        <div className={`detail-cover${hasImg ? ' has-img' : ''}`} style={{ background: p.coverColor }}>
+          {/* 🖼️ รูปปกจริง (ถ้ามี) */}
+          <img
+            className="detail-cover-img"
+            src={coverUrlFromSheet(p) || coverUrlFromFiles(p.id)}
+            alt={p.title}
+            onLoad={() => setHasImg(true)}
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }}
+          />
           <div className="cover-badges">
             <span className="cover-pdf big">PDF</span>
             {/* 🏷️ สินค้ากำลังทำ → ป้าย Work In Progress ข้างป้าย PDF */}
@@ -42,10 +94,8 @@ export default function ProductDetail() {
             {[p.category, pagesLabel(p.pages)].filter(Boolean).join(' ')}
             {p.fileSize ? ' • ' + p.fileSize : ''}
           </p>
-          <div className="preview-box">
-            🔒 ตัวอย่างไฟล์ — รุ่นนี้ยังไม่เปิดดาวน์โหลดฉบับเต็ม
-            และไม่มีไฟล์ส่วนตัวเก็บในพื้นที่สาธารณะ
-          </div>
+          {/* 👁️ ตัวอย่างไฟล์ PDF (ถ้ามีไฟล์ตัวอย่าง) */}
+          <SamplePreview productId={p.id} />
         </div>
         <div>
           <span className="pill">{p.category}</span>

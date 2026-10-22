@@ -304,3 +304,44 @@ a { color: inherit; }
   font-size: .92rem;
   line-height: 1.6;
 }
+
+/* 🖼️ รูปปกสินค้า (จริง) */
+.cover { position: relative; overflow: hidden; }
+.cover-img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: top center; display: block;
+}
+.cover .cover-pdf, .cover .cover-title, .cover .cover-meta { position: relative; z-index: 1; }
+.cover .cover-wip { z-index: 2; }
+
+.detail-cover { position: relative; overflow: hidden; }
+.detail-cover-img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: top center; opacity: .9;
+}
+.detail-cover > *:not(.detail-cover-img) { position: relative; z-index: 1; }
+
+/* 👁️ ตัวอย่างไฟล์ PDF */
+.preview-box { background: rgba(0,0,0,.3); border: 1px dashed rgba(255,255,255,.6); padding: 12px; border-radius: 10px; margin-top: 10px; }
+.preview-title { font-weight: 800; font-size: .9rem; margin-bottom: 8px; }
+.preview-frame { width: 100%; height: 520px; border: 0; border-radius: 8px; background: #fff; display: block; }
+@media (max-width: 560px) { .preview-frame { height: 380px; } }
+
+/* 🖼️ การ์ดที่มีรูปปกจริง → แถบมืดด้านล่างให้ข้อความขาวอ่านออก */
+.cover.has-img::after {
+  content: ''; position: absolute; inset: auto 0 0 0; height: 65%;
+  background: linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,0));
+  pointer-events: none; z-index: 1;
+}
+.cover.has-img .cover-title, .cover.has-img .cover-meta { text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+
+/* 🖼️ หน้าสินค้าที่มีรูปปกจริง → พื้นขาว + ข้อความสีเข้ม */
+.detail-cover.has-img { background: #fff !important; color: var(--ink); }
+.detail-cover.has-img .detail-cover-img {
+  position: static; width: 100%; max-height: 400px; height: auto;
+  object-fit: contain; object-position: center; opacity: 1;
+  border-radius: 10px; margin-bottom: 4px;
+}
+.detail-cover.has-img h2, .detail-cover.has-img p { color: var(--ink); text-shadow: none; }
+.detail-cover.has-img .cover-pdf { background: #1d4ed8; color: #fff; }
+.detail-cover.has-img .preview-box { background: #f8fafc; border-color: var(--line); color: var(--ink); }

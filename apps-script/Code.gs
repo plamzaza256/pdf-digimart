@@ -743,6 +743,8 @@ function _listProducts() {
       coverColor: r.cover_color || '#1d4ed8',
       // 📝 หมายเหตุจากเจ้าของร้าน (คอลัมน์ admin_note)
       adminNote: String(r.admin_note || '').trim(),
+      // 🖼️ ลิงก์รูปปก (คอลัมน์ cover_url) — ถ้าว่าง เว็บจะใช้ไฟล์ public/covers/{id}.jpg แทน
+      coverUrl: String(r.cover_url || '').trim(),
       status: status,
       createdAt: _fmtDate(r.created_at)
     };
@@ -1085,7 +1087,8 @@ const SHEET_FIELD_ALIASES = {
   user_id: ['userid'],
   favorite_id: ['favoriteid'],
   product_name: ['productname'],
-  admin_note: ['adminnote', 'note', 'adminnotes']
+  admin_note: ['adminnote', 'note', 'adminnotes'],
+  cover_url: ['coverurl', 'coverimage', 'imageurl', 'image']
 };
 
 /**
