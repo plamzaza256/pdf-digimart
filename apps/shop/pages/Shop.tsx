@@ -52,7 +52,7 @@ export default function Shop() {
         <div className="sales-stats">
           <div className="stat-box">
             <b>{salesSummary.total}</b>
-            <span>ไฟล์ที่ขายได้</span>
+            <span>ขายไปแล้ว</span>
           </div>
         </div>
       )}

@@ -17,11 +17,11 @@ export default function ProductCard({ p }: { p: Product }) {
         <span className="cover-meta">
           {[p.category, pagesLabel(p.pages)].filter(Boolean).join(' ')}
         </span>
-        {isWip && <span className="cover-wip">WIP</span>}
+        {isWip && <span className="cover-wip">Work In Progress</span>}
       </Link>
       <div className="card-body">
         <span className="pill">{p.category}</span>
-        {isWip && <span className="pill pill-wip">WIP</span>}
+        {isWip && <span className="pill pill-wip">Work In Progress</span>}
         <Link to={`/product/${p.id}`} className="card-title">{p.title}</Link>
         <p className="card-desc">{p.description}</p>
         <div className="card-meta">

@@ -32,7 +32,11 @@ export default function ProductDetail() {
       <Link to="/shop" className="link">← กลับหน้าร้าน</Link>
       <div className="detail-grid">
         <div className="detail-cover" style={{ background: p.coverColor }}>
-          <span className="cover-pdf big">PDF</span>
+          <div className="cover-badges">
+            <span className="cover-pdf big">PDF</span>
+            {/* 🏷️ สินค้ากำลังทำ → ป้าย Work In Progress ข้างป้าย PDF */}
+            {p.status === 'WIP' && <span className="cover-wip inline">Work In Progress</span>}
+          </div>
           <h2>{p.title}</h2>
           <p>
             {[p.category, pagesLabel(p.pages)].filter(Boolean).join(' ')}
@@ -124,6 +128,13 @@ export default function ProductDetail() {
             </div>
             <div><dt>จำนวนหน้า</dt><dd>{pagesLabel(p.pages) || '-'}</dd></div>
             <div><dt>อัปเดต</dt><dd>{p.createdAt}</dd></div>
+            {/* 📝 หมายเหตุจากเจ้าของร้าน (คอลัมน์ admin_note ในชีต Products) */}
+            {p.adminNote && (
+              <div>
+                <dt>หมายเหตุ</dt>
+                <dd className="admin-note">{p.adminNote}</dd>
+              </div>
+            )}
           </dl>
         </div>
       </div>

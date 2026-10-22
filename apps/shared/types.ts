@@ -16,6 +16,8 @@ export interface Product {
   sales: number;
   coverColor: string;
   tags: string[];
+  /** 📝 หมายเหตุจากเจ้าของร้าน (คอลัมน์ admin_note ในชีต Products) */
+  adminNote?: string;
   /**
    * สถานะการเผยแพร่ (จาก dropdown ในชีต)
    *   published  → แสดงบนเว็บ

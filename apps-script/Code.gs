@@ -741,6 +741,8 @@ function _listProducts() {
       //    (เจ้าของร้านลิงก์สูตร COUNTIF มาจาก Sales Tracker ไว้แล้ว)
       sales: _num(r.sales),
       coverColor: r.cover_color || '#1d4ed8',
+      // 📝 หมายเหตุจากเจ้าของร้าน (คอลัมน์ admin_note)
+      adminNote: String(r.admin_note || '').trim(),
       status: status,
       createdAt: _fmtDate(r.created_at)
     };
@@ -1082,8 +1084,35 @@ const SHEET_FIELD_ALIASES = {
   created_at: ['createdat'],
   user_id: ['userid'],
   favorite_id: ['favoriteid'],
-  product_name: ['productname']
+  product_name: ['productname'],
+  admin_note: ['adminnote', 'note', 'adminnotes']
 };
+
+/**
+ * 📝 เพิ่มคอลัมน์ admin_note ในแท็บ Products (ถ้ายังไม่มี)
+ *
+ * ⚠️ ให้เจ้าของร้านรันเองครั้งเดียว (เลือกฟังก์ชันนี้ใน Apps Script → Run)
+ *    เพิ่มคอลัมน์ท้ายสุด → ไม่แตะข้อมูลเดิมในชีต
+ */
+function setupAdminNote() {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_PRODUCTS);
+  if (!sh) return 'ไม่พบแท็บ Products';
+
+  const lastCol = sh.getLastColumn();
+  const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
+    return String(h || '').trim();
+  });
+
+  for (let i = 0; i < headers.length; i++) {
+    if (_normKey(headers[i]) === 'adminnote') {
+      return 'มีคอลัมน์ admin_note อยู่แล้ว (คอลัมน์ที่ ' + (i + 1) + ') — ไม่ต้องทำอะไร';
+    }
+  }
+
+  sh.insertColumnAfter(lastCol);
+  sh.getRange(1, lastCol + 1).setValue('admin_note');
+  return 'เพิ่มคอลัมน์ admin_note ที่คอลัมน์ ' + (lastCol + 1) + ' เรียบร้อย ✅';
+}
 
 /**
  * 🔢 อ่านค่าตัวเลขอย่างปลอดภัย
