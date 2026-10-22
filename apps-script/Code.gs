@@ -729,16 +729,17 @@ function _listProducts() {
       tags: String(r.tags || '').split(',').map(function (s) { return s.trim(); })
         .filter(Boolean),
       // ส่งกลับเป็น "บาท" เพื่อให้หน้าเว็บใช้ได้เลย
-      price: Math.round(Number(r.price_satang || 0) / 100),
+      price: Math.round(_num(r.price_satang) / 100),
       oldPrice: r.old_price_satang === '' || r.old_price_satang == null
         ? undefined
-        : Math.round(Number(r.old_price_satang) / 100),
+        : Math.round(_num(r.old_price_satang)),
       pages: _pagesVal(r.pages),
       fileSize: r.file_size,
-      rating: Number(r.rating || 0),
+      // ⭐ คะแนนเฉลี่ย (สูตรในชีตอาจติด error เช่น #DIV/0! → ให้เป็น 0)
+      rating: _num(r.rating),
       // 🧾 ยอดขาย: อ่านจากคอลัมน์ sales ในแท็บ Products
       //    (เจ้าของร้านลิงก์สูตร COUNTIF มาจาก Sales Tracker ไว้แล้ว)
-      sales: Number(r.sales || 0),
+      sales: _num(r.sales),
       coverColor: r.cover_color || '#1d4ed8',
       status: status,
       createdAt: _fmtDate(r.created_at)
@@ -1082,6 +1083,20 @@ const SHEET_FIELD_ALIASES = {
   favorite_id: ['favoriteid'],
   product_name: ['productname']
 };
+
+/**
+ * 🔢 อ่านค่าตัวเลขอย่างปลอดภัย
+ *
+ * ถ้าช่องในชีตเป็นสูตรที่ติด error (เช่น #DIV/0!)
+ * → Number() จะได้ NaN → JSON กลายเป็น null → หน้าเว็บพัง
+ * → ตรงนี้แปลงเป็น 0 ให้อัตโนมัติ
+ */
+function _num(v, fallback) {
+  const fb = fallback === undefined ? 0 : fallback;
+  if (v === '' || v === null || v === undefined) return fb;
+  const n = Number(v);
+  return isFinite(n) ? n : fb;
+}
 
 /**
  * 📄 จำนวนหน้า — รองรับทั้งตัวเลข (80) และข้อความ ("80 ข้อ • 46")
