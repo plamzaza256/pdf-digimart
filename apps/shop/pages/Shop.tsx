@@ -74,6 +74,10 @@ export default function Shop() {
           <option value="cheap">ราคาต่ำ → สูง</option>
           <option value="expensive">ราคาสูง → ต่ำ</option>
         </select>
+        {/* 🔄 ดึงข้อมูลใหม่จากชีต (แคชอัตโนมัติ 3 นาที) */}
+        <button className="btn btn-outline" onClick={reload} disabled={loading}>
+          {loading ? 'กำลังโหลด…' : '🔄 รีเฟรช'}
+        </button>
       </div>
 
       {loadError && products.length === 0 ? (
