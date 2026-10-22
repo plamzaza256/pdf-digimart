@@ -90,6 +90,7 @@ public/          โลโก้ · favicon
 | `npm run dev` | เปิดโหมดพัฒนา (5173) |
 | `npm run build` | ตรวจ TypeScript + build เว็บร้าน → `dist/shop` |
 | `npm run preview` | ดูผล build แบบ local |
+| `node tests/rating.test.cjs` | เทสต์ระบบให้คะแนน (จำลองชีต ไม่แตะชีตจริง) |
 
 **Cloudflare Pages (เว็บร้าน)**
 ```

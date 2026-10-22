@@ -849,7 +849,7 @@ function _setRating(user, body) {
         if (Number(c) === cId) continue;
         sh.getRange(foundRow, Number(c) + 1).setValue(values[c]);
       }
-      return { ok: true, message: 'บันทึกคะแนนแล้ว (อัปเดตของเดิม)', rating: rating };
+      return { ok: true, message: 'บันทึกคะแนนแล้ว (อัปเดตของเดิม)', rating: rating, row: foundRow };
     }
 
     // ➕ เพิ่มแถวใหม่
@@ -885,10 +885,11 @@ function _setRating(user, body) {
       targetRow++;
     }
 
-    const row = [];
-    for (let i = 0; i < headers.length; i++) row.push('');
-    for (const c in values) row[Number(c)] = values[c];
-    sh.getRange(targetRow, 1, 1, headers.length).setValues([row]);
+    // 🛡 เขียนเฉพาะคอลัมน์ข้อมูลคะแนน (A-G) ทีละช่อง
+    //    ห้ามเขียนทับทั้งแถว — เจ้าของร้านมีบล็อกสรุป/สูตรอยู่คอลัมน์อื่น
+    for (const c in values) {
+      sh.getRange(targetRow, Number(c) + 1).setValue(values[c]);
+    }
 
     return { ok: true, message: 'ขอบคุณสำหรับคะแนน!', rating: rating, row: targetRow };
   } catch (err) {
