@@ -60,8 +60,11 @@ export default function RatingModal({ productId, productTitle, onClose, onSaved 
   }, [onClose]);
 
   // ดาวที่กด = ดาวเต็มก่อนหน้า + (ครึ่งดาวถ้าคลิกครึ่งซ้าย)
+  // 🛡 ตั้ง hover ตามค่าที่เลือกด้วย → ตัวเลขที่เห็นตรงกับที่เลือกจริง
   const pick = (star: number, half: boolean) => {
-    setValue(half ? star - 0.5 : star);
+    const v = half ? star - 0.5 : star;
+    setValue(v);
+    setHover(v);
   };
 
   const shown = hover || value;
