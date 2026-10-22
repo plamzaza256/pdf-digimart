@@ -852,12 +852,44 @@ function _setRating(user, body) {
     }
 
     // ➕ เพิ่มแถวใหม่
+    // 🛡 เขียนต่อท้าย "ข้อมูล" ไม่ใช่ท้ายชีต
+    //    (ชีตอาจมีแถวเปล่าเป็นร้อยแถว → appendRow จะไปตกแถว 1000+)
+    const dataCols = [];
+    for (const name of ['Rating_id', 'email', 'User_id', 'product_id', 'created_at', 'rating', 'comment']) {
+      const c = _colIndex(headers, name);
+      if (c !== -1) dataCols.push(c);
+    }
+    if (dataCols.length === 0) dataCols.push(0);
+
+    // หาแถวข้อมูลสุดท้าย (นับจากคอลัมน์ข้อมูล ไม่นับแถวสรุปของเจ้าของร้าน)
+    let lastData = hIdx;
+    for (let r = hIdx; r < all.length; r++) {
+      let has = false;
+      for (const c of dataCols) {
+        const v = all[r][c];
+        if (v !== '' && v !== null && v !== undefined) { has = true; break; }
+      }
+      if (has) lastData = r;
+    }
+    let targetRow = lastData + 1;
+
+    // ถ้าแถวนั้นยังมีข้อมูลค้าง (กรณีแท็บมีแถวสรุปของเจ้าของร้านทับ) → เลื่อนลง
+    while (targetRow <= all.length) {
+      let occupied = false;
+      for (const c of dataCols) {
+        const v = all[targetRow - 1][c];
+        if (v !== '' && v !== null && v !== undefined) { occupied = true; break; }
+      }
+      if (!occupied) break;
+      targetRow++;
+    }
+
     const row = [];
     for (let i = 0; i < headers.length; i++) row.push('');
     for (const c in values) row[Number(c)] = values[c];
-    sh.appendRow(row);
+    sh.getRange(targetRow, 1, 1, headers.length).setValues([row]);
 
-    return { ok: true, message: 'ขอบคุณสำหรับคะแนน!', rating: rating };
+    return { ok: true, message: 'ขอบคุณสำหรับคะแนน!', rating: rating, row: targetRow };
   } catch (err) {
     return { ok: false, error: String(err) };
   } finally {

@@ -80,9 +80,16 @@ export default function ProductDetail() {
                     src="/thumbup.png"
                     alt=""
                     onError={(e) => {
-                      // ยังไม่ได้อัปโหลดไอคอน → ใช้ emoji แทน
-                      (e.currentTarget as HTMLImageElement).style.display = 'none';
-                      (e.currentTarget.parentElement as HTMLElement).dataset.fallback = '1';
+                      // ไม่มีไฟล์ PNG → ใช้ไอคอน SVG ที่มีอยู่
+                      const img = e.currentTarget as HTMLImageElement;
+                      if (img.dataset.fallback) {
+                        // SVG ก็ไม่มี → ใช้ emoji แทน
+                        img.style.display = 'none';
+                        (img.parentElement as HTMLElement).dataset.fallback = '1';
+                      } else {
+                        img.dataset.fallback = '1';
+                        img.src = '/thumbup.svg';
+                      }
                     }}
                   />
                   <span className="rate-thumb-emoji">👍</span>
