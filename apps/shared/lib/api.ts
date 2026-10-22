@@ -235,3 +235,31 @@ export function apiRateProduct(
 export function apiMyRating(email: string, token: string, productId: string) {
   return call('rating.mine', { email, token, product_id: productId });
 }
+
+// ============================ ⭐ ให้คะแนนเว็บไซต์ ============================
+
+/**
+ * ⭐ บันทึกคะแนนเว็บไซต์ (ให้คะแนนร้านทั้งร้าน)
+ *
+ * เขียนลงแท็บ Rating เดิม โดยใช้ product_id = "WEBSITE"
+ * (สูตรเฉลี่ยรายสินค้าในชีตไม่กระทบ เพราะนับเฉพาะรหัสสินค้าจริง)
+ */
+export function apiRateWebsite(
+  email: string,
+  token: string,
+  rating: number,
+  comment: string,
+) {
+  return call('website.rate', { email, token, rating, comment });
+}
+
+/** ⭐ คะแนนเฉลี่ยของเว็บ + จำนวนคนให้คะแนน (อ่านอย่างเดียว) */
+export async function apiWebsiteRating() {
+  const res = await fetch(`${apiUrl()}?action=website.rating`);
+  return (await res.json()) as { ok: boolean; avg?: number; count?: number };
+}
+
+/** ⭐ คะแนนเว็บของผู้ใช้เอง (ต้องล็อกอิน) */
+export function apiWebsiteRatingMine(email: string, token: string) {
+  return call('website.rating.mine', { email, token });
+}

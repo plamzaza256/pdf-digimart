@@ -336,3 +336,15 @@ a { color: inherit; }
 .detail-cover.has-img h2, .detail-cover.has-img p { color: var(--ink); text-shadow: none; }
 .detail-cover.has-img .cover-pdf { background: #1d4ed8; color: #fff; }
 .detail-cover.has-img .preview-box { background: #f8fafc; border-color: var(--line); color: var(--ink); }
+
+/* ⭐ ให้คะแนนเว็บไซต์ */
+.web-rate-box {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 22px; margin: 34px 0 10px; box-shadow: var(--shadow);
+  scroll-margin-top: 90px;
+}
+.web-rate-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.web-rate-head .sec-title { margin: 0; }
+.web-rate-stat { color: #b45309; font-weight: 800; }
+.web-rate-actions { display: flex; justify-content: flex-end; margin-top: 14px; }
+.ok-box { background: #f0fdf4; border: 1px solid #86efac; color: #166534; }

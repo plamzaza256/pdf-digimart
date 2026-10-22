@@ -278,6 +278,35 @@ R.data.slice(0, 6).forEach((row, i) => {
   console.log('   แถว ' + (i + 1) + ': ' + JSON.stringify(row.slice(0, 7)));
 });
 
+
+// ============ ⭐ คะแนนเว็บไซต์ (product_id = WEBSITE) ============
+console.log('\n9) ให้คะแนนเว็บไซต์');
+{
+  // เพิ่มแถว WEBSITE จำลองในชีต (แถว 5)
+  const row = [];
+  for (let i = 0; i < 14; i++) row.push('');
+  row[0] = 'uuid-web-1';
+  row[1] = EMAIL;
+  row[2] = 'UID_0007';
+  row[3] = 'WEBSITE';
+  row[4] = new Date();
+  row[5] = 4.5;
+  row[6] = 'เว็บสวยง่าย';
+  R.data[4] = row;
+
+  const stat = JSON.parse(sandbox.doGet({ parameter: { action: 'website.rating' } }).getContent());
+  check('เฉลี่ย = 4.5', stat.ok && Number(stat.avg) === 4.5, stat);
+  check('จำนวนคน = 1', stat.ok && Number(stat.count) === 1, stat);
+
+  const mine = post({ action: 'website.rating.mine', email: EMAIL, token: TOKEN });
+  check('คะแนนของตัวเอง = 4.5', mine.ok && Number(mine.rating) === 4.5, mine);
+
+  const setRes = post({ action: 'website.rate', email: EMAIL, token: TOKEN, rating: 5, comment: 'ดีมาก' });
+  check('ให้คะแนนเว็บสำเร็จ', setRes.ok === true, setRes);
+  check('ทับแถวเดิมของคนคนเดิม (ไม่เพิ่มแถว)', R.data.filter((r) => String(r[3] || '') === 'WEBSITE').length === 1);
+  check('ค่าใหม่ = 5', Number(R.data[4][5]) === 5, R.data[4]);
+  check('ยังไม่มีการเขียนทับบล็อกสรุป', R.data[2][8] === 'AVG' && R.data[3][8] === 'COUNT');
+}
 console.log('\n─────────────────────────────');
 console.log('ผ่าน ' + pass + ' / ล้มเหลว ' + fail);
 process.exit(fail > 0 ? 1 : 0);

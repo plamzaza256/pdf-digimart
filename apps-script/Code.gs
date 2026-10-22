@@ -30,6 +30,8 @@ const SHEET_PRODUCTS = 'Products';
 const SHEET_CONFIG = 'Config';
 const SHEET_USERS = 'user_id';
 const SHEET_RATING = 'Rating';
+// ⭐ รหัสพิเศษสำหรับคะแนนเว็บไซต์ (เก็บในแท็บ Rating เดิม)
+const WEBSITE_RATING_ID = 'WEBSITE';
 
 // 🗂️ หมวดหมู่ — ตรงกับ dropdown ในชีต (แก้ในชีตได้ แต่ถ้าเพิ่มค่าใหม่ต้องแจ้ง)
 const CATEGORY_LIST = ['ข้อสอบ', 'หนังสือ', 'Flashcard', 'อื่นๆ'];
@@ -197,6 +199,9 @@ function doGet(e) {
     // 📋 โครงสร้างชีต (อ่านอย่างเดียว ไม่ต้องล็อกอิน) — รองรับทั้ง GET และ POST
     if (action === 'sheet.structure') return _json(_sheetStructure());
 
+    // ⭐ คะแนนเฉลี่ยของเว็บไซต์ (อ่านอย่างเดียว)
+    if (action === 'website.rating') return _json(_websiteRatingStat());
+
     return _json({ ok: false, error: 'ไม่รู้จักคำสั่ง: ' + action });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
@@ -231,6 +236,24 @@ function doPost(e) {
       const sess = _session(body);
       if (!sess.ok) return _json({ ok: false, error: 'กรุณาเข้าสู่ระบบก่อน' });
       return _json(_myRating(sess.user, body.product_id));
+    }
+
+    // --- ⭐ ให้คะแนนเว็บไซต์ (ร้านทั้งร้าน) ---
+    //    เขียนลงแท็บ Rating เดิม โดยใช้ product_id = "WEBSITE"
+    //    (สูตรเฉลี่ยรายสินค้าของเจ้าของร้านไม่กระทบ เพราะนับเฉพาะรหัสสินค้าจริง)
+    if (action === 'website.rate') {
+      const sess = _session(body);
+      if (!sess.ok) return _json({ ok: false, error: 'กรุณาเข้าสู่ระบบก่อนให้คะแนน' });
+      return _json(_setRating(sess.user, {
+        product_id: WEBSITE_RATING_ID,
+        rating: body.rating,
+        comment: body.comment
+      }));
+    }
+    if (action === 'website.rating.mine') {
+      const sess = _session(body);
+      if (!sess.ok) return _json({ ok: false, error: 'กรุณาเข้าสู่ระบบก่อน' });
+      return _json(_myRating(sess.user, WEBSITE_RATING_ID));
     }
 
     return _json({ ok: false, error: 'ไม่รู้จักคำสั่ง: ' + action });
@@ -903,6 +926,46 @@ function _setRating(user, body) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * ⭐ คะแนนเฉลี่ยของเว็บไซต์ (อ่านอย่างเดียว ไม่เขียนอะไร)
+ *
+ * นับเฉพาะแถวที่ product_id = "WEBSITE"
+ * @return {Object} { ok, avg, count }
+ */
+function _websiteRatingStat() {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_RATING);
+  if (!sh) return { ok: true, avg: 0, count: 0 };
+
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 2) return { ok: true, avg: 0, count: 0 };
+
+  const all = sh.getRange(1, 1, lastRow, lastCol).getValues();
+  const hIdx = _findHeaderRow(all);
+  const headers = all[hIdx].map(function (h) { return String(h || '').trim(); });
+  const cProduct = _colIndex(headers, 'product_id');
+  const cRating = _colIndex(headers, 'rating');
+  if (cProduct === -1 || cRating === -1) return { ok: true, avg: 0, count: 0 };
+
+  let sum = 0;
+  let count = 0;
+  for (let r = hIdx + 1; r < all.length; r++) {
+    const row = all[r];
+    if (!row[0]) continue;
+    if (String(row[cProduct] || '').trim() !== WEBSITE_RATING_ID) continue;
+    const v = Number(row[cRating] || 0);
+    if (!v) continue;
+    sum += v;
+    count++;
+  }
+
+  return {
+    ok: true,
+    avg: count ? Math.round((sum / count) * 10) / 10 : 0,
+    count: count
+  };
 }
 
 /** ⭐ คะแนนของผู้ใช้เอง (ใช้เติมช่องตอนเปิดป๊อปอัพครั้งแรก) */

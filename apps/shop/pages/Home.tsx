@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useShop } from '../store/shop';
 import ProductCard from '../components/ProductCard';
+import WebsiteRating from '../components/WebsiteRating';
 
 export default function Home() {
   const { products, loadError, reload } = useShop();
@@ -75,6 +76,8 @@ export default function Home() {
           <li><b>3. กดสั่งซื้อ</b> — ระบบจะพาไปที่ LINE OA ของร้าน แจ้งชื่อสินค้าได้เลย</li>
         </ol>
       </section>
+
+      <WebsiteRating />
     </div>
   );
 }
