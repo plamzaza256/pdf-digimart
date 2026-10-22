@@ -1099,19 +1099,41 @@ function setupAdminNote() {
   if (!sh) return 'ไม่พบแท็บ Products';
 
   const lastCol = sh.getLastColumn();
-  const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (h) {
-    return String(h || '').trim();
-  });
+  const lastRow = sh.getLastRow();
 
+  // 🔎 หาแถวหัวตารางจริง (ชีตนี้มีแถวชื่อรายงานที่แถว 1 → หัวตารางอยู่แถว 2)
+  const all = sh.getRange(1, 1, lastRow, lastCol).getValues();
+  const hIdx = _findHeaderRow(all);
+  const headers = all[hIdx].map(function (h) { return String(h || '').trim(); });
+
+  // มีคอลัมน์ admin_note แล้วไหม
   for (let i = 0; i < headers.length; i++) {
     if (_normKey(headers[i]) === 'adminnote') {
-      return 'มีคอลัมน์ admin_note อยู่แล้ว (คอลัมน์ที่ ' + (i + 1) + ') — ไม่ต้องทำอะไร';
+      return 'มีคอลัมน์ admin_note อยู่แล้ว (คอลัมน์ที่ ' + (i + 1) + ') — ไม่ต้องทำอะไร ✅';
     }
   }
 
-  sh.insertColumnAfter(lastCol);
-  sh.getRange(1, lastCol + 1).setValue('admin_note');
-  return 'เพิ่มคอลัมน์ admin_note ที่คอลัมน์ ' + (lastCol + 1) + ' เรียบร้อย ✅';
+  // คอลัมน์สุดท้ายยังว่างอยู่ไหม → ใช้ที่เดิม (เผื่อรอนก่อนที่จะเขียนผิดแถว)
+  let targetCol = -1;
+  for (let i = headers.length - 1; i >= 0; i--) {
+    if (headers[i] === '') { targetCol = i + 1; break; }
+  }
+  if (targetCol === -1) {
+    sh.insertColumnAfter(lastCol);
+    targetCol = lastCol + 1;
+  }
+
+  // ✍️ เขียนชื่อคอลัมน์ลง "แถวหัวตารางจริง" (ไม่ใช่แถว 1)
+  sh.getRange(hIdx + 1, targetCol).setValue('admin_note');
+
+  // 🧹 ล้างค่าที่อาจถูกเขียนผิดแถว (แถว 1) ของคอลัมน์นี้
+  if (hIdx > 0) {
+    const stray = String(sh.getRange(1, targetCol).getValue() || '').trim();
+    if (stray === 'admin_note') sh.getRange(1, targetCol).setValue('');
+  }
+
+  return 'เพิ่มคอลัมน์ admin_note ที่คอลัมน์ ' + targetCol +
+    ' แถวหัวตาราง ' + (hIdx + 1) + ' เรียบร้อย ✅';
 }
 
 /**
