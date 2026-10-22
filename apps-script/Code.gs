@@ -964,19 +964,39 @@ function _findHeaderRow(vals) {
     candidates.push({ row: r, score: filled });
   }
 
-  if (!candidates.length) return 0;
+  if (candidates.length) {
+    let maxScore = 0;
+    for (let i = 0; i < candidates.length; i++) {
+      if (candidates[i].score > maxScore) maxScore = candidates[i].score;
+    }
 
-  let maxScore = 0;
-  for (let i = 0; i < candidates.length; i++) {
-    if (candidates[i].score > maxScore) maxScore = candidates[i].score;
+    // เลือกแถวแรกที่ "เกือบกว้างที่สุด" (แถวชื่อรายงานแคบเกินไป → ตกรอบ)
+    const floor = maxScore * 0.6;
+    for (let i = 0; i < candidates.length; i++) {
+      if (candidates[i].score >= floor) return candidates[i].row;
+    }
+    return candidates[0].row;
   }
 
-  // เลือกแถวแรกที่ "เกือบกว้างที่สุด" (แถวชื่อรายงานแคบเกินไป → ตกรอบ)
-  const floor = maxScore * 0.6;
-  for (let i = 0; i < candidates.length; i++) {
-    if (candidates[i].score >= floor) return candidates[i].row;
+  // 🆘 ยังไม่มีแถวข้อมูลเลย (เช่นแท็บใหม่ที่เพิ่งสร้าง)
+  //    → ใช้แถวหัวตารางที่กว้างที่สุดใน 8 แถวแรกแทน
+  let best = 0;
+  let bestScore = 0;
+  for (let r = 0; r < maxScan; r++) {
+    const cells = vals[r] || [];
+    let filled = 0;
+    let texts = 0;
+    for (let c = 0; c < cells.length; c++) {
+      const v = cells[c];
+      if (v === '' || v === null || v === undefined) continue;
+      filled++;
+      if (typeof v === 'string') texts++;
+    }
+    if (filled < 2) continue;
+    if (texts < filled * 0.6) continue;
+    if (filled > bestScore) { bestScore = filled; best = r; }
   }
-  return candidates[0].row;
+  return best;
 }
 
 /** 🔎 หาเลขคอลัมน์จากชื่อ (ยืดหยุ่น ไม่สนเครื่องหมาย) */
