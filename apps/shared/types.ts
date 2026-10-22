@@ -20,6 +20,8 @@ export interface Product {
   adminNote?: string;
   /** 🖼️ ลิงก์รูปปก (คอลัมน์ cover_url ในชีต Products) */
   coverUrl?: string;
+  /** 👁️ ลิงก์ไฟล์ตัวอย่าง (คอลัมน์ file_sample_url ในชีต Products) */
+  sampleUrl?: string;
   /**
    * สถานะการเผยแพร่ (จาก dropdown ในชีต)
    *   published  → แสดงบนเว็บ

@@ -745,6 +745,8 @@ function _listProducts() {
       adminNote: String(r.admin_note || '').trim(),
       // 🖼️ ลิงก์รูปปก (คอลัมน์ cover_url) — ถ้าว่าง เว็บจะใช้ไฟล์ public/covers/{id}.jpg แทน
       coverUrl: String(r.cover_url || '').trim(),
+      // 👁️ ลิงก์ไฟล์ตัวอย่าง (คอลัมน์ file_sample_url) — ถ้าว่าง เว็บจะใช้ไฟล์ public/samples/{id}.pdf แทน
+      sampleUrl: String(r.file_sample_url || '').trim(),
       status: status,
       createdAt: _fmtDate(r.created_at)
     };
@@ -1088,7 +1090,8 @@ const SHEET_FIELD_ALIASES = {
   favorite_id: ['favoriteid'],
   product_name: ['productname'],
   admin_note: ['adminnote', 'note', 'adminnotes'],
-  cover_url: ['coverurl', 'coverimage', 'imageurl', 'image']
+  cover_url: ['coverurl', 'coverimage', 'imageurl', 'image'],
+  file_sample_url: ['filesampleurl', 'sampleurl', 'samplefileurl', 'sample']
 };
 
 /**
@@ -1101,6 +1104,9 @@ function setupAdminNote() {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_PRODUCTS);
   if (!sh) return 'ไม่พบแท็บ Products';
 
+  // 📋 คอลัมน์ที่ระบบต้องใาร้านเพิ่ม (เรียงต่อท้ายกัน)
+  const WANTED = ['admin_note', 'cover_url', 'file_sample_url'];
+
   const lastCol = sh.getLastColumn();
   const lastRow = sh.getLastRow();
 
@@ -1109,34 +1115,47 @@ function setupAdminNote() {
   const hIdx = _findHeaderRow(all);
   const headers = all[hIdx].map(function (h) { return String(h || '').trim(); });
 
-  // มีคอลัมน์ admin_note แล้วไหม
-  for (let i = 0; i < headers.length; i++) {
-    if (_normKey(headers[i]) === 'adminnote') {
-      return 'มีคอลัมน์ admin_note อยู่แล้ว (คอลัมน์ที่ ' + (i + 1) + ') — ไม่ต้องทำอะไร ✅';
+  const added = [];
+  let nextCol = lastCol;
+
+  for (let w = 0; w < WANTED.length; w++) {
+    const name = WANTED[w];
+    const key = _normKey(name);
+
+    // มีอยู่แล้วไหม
+    let exists = -1;
+    for (let i = 0; i < headers.length; i++) {
+      if (_normKey(headers[i]) === key) { exists = i + 1; break; }
     }
+    if (exists !== -1) continue;
+
+    // คอลัมน์สุดท้ายยังว่างอยู่ไหม → ใช้ที่เดิม (เผื่อรอนก่อนที่จะเขียนผิดแถว)
+    let targetCol = -1;
+    for (let i = headers.length - 1; i >= 0; i--) {
+      if (headers[i] === '') { targetCol = i + 1; break; }
+    }
+    if (targetCol === -1) {
+      sh.insertColumnAfter(nextCol);
+      nextCol = nextCol + 1;
+      targetCol = nextCol;
+    }
+
+    // ✍️ เขียนชื่อคอลัมน์ลง "แถวหัวตารางจริง" (ไม่ใช่แถว 1)
+    sh.getRange(hIdx + 1, targetCol).setValue(name);
+
+    // 🧹 ล้างค่าที่อาจถูกเขียนผิดแถว (แถว 1) ของคอลัมน์นี้
+    if (hIdx > 0) {
+      const stray = String(sh.getRange(1, targetCol).getValue() || '').trim();
+      if (stray === name) sh.getRange(1, targetCol).setValue('');
+    }
+
+    added.push(name + ' (คอลัมน์ ' + targetCol + ')');
   }
 
-  // คอลัมน์สุดท้ายยังว่างอยู่ไหม → ใช้ที่เดิม (เผื่อรอนก่อนที่จะเขียนผิดแถว)
-  let targetCol = -1;
-  for (let i = headers.length - 1; i >= 0; i--) {
-    if (headers[i] === '') { targetCol = i + 1; break; }
+  if (!added.length) {
+    return 'คอลัมน์ครบทั้งหมดแล้ว ✅ (' + WANTED.join(', ') + ') — ไม่ต้องทำอะไร';
   }
-  if (targetCol === -1) {
-    sh.insertColumnAfter(lastCol);
-    targetCol = lastCol + 1;
-  }
-
-  // ✍️ เขียนชื่อคอลัมน์ลง "แถวหัวตารางจริง" (ไม่ใช่แถว 1)
-  sh.getRange(hIdx + 1, targetCol).setValue('admin_note');
-
-  // 🧹 ล้างค่าที่อาจถูกเขียนผิดแถว (แถว 1) ของคอลัมน์นี้
-  if (hIdx > 0) {
-    const stray = String(sh.getRange(1, targetCol).getValue() || '').trim();
-    if (stray === 'admin_note') sh.getRange(1, targetCol).setValue('');
-  }
-
-  return 'เพิ่มคอลัมน์ admin_note ที่คอลัมน์ ' + targetCol +
-    ' แถวหัวตาราง ' + (hIdx + 1) + ' เรียบร้อย ✅';
+  return 'เพิ่มคอลัมน์: ' + added.join(' · ') + ' เรียบร้อย ✅';
 }
 
 /**

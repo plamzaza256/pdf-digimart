@@ -312,7 +312,6 @@ a { color: inherit; }
   object-fit: cover; object-position: top center; display: block;
 }
 .cover .cover-pdf, .cover .cover-title, .cover .cover-meta { position: relative; z-index: 1; }
-.cover .cover-wip { z-index: 2; }
 
 .detail-cover { position: relative; overflow: hidden; }
 .detail-cover-img {
@@ -326,14 +325,6 @@ a { color: inherit; }
 .preview-title { font-weight: 800; font-size: .9rem; margin-bottom: 8px; }
 .preview-frame { width: 100%; height: 520px; border: 0; border-radius: 8px; background: #fff; display: block; }
 @media (max-width: 560px) { .preview-frame { height: 380px; } }
-
-/* 🖼️ การ์ดที่มีรูปปกจริง → แถบมืดด้านล่างให้ข้อความขาวอ่านออก */
-.cover.has-img::after {
-  content: ''; position: absolute; inset: auto 0 0 0; height: 65%;
-  background: linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,0));
-  pointer-events: none; z-index: 1;
-}
-.cover.has-img .cover-title, .cover.has-img .cover-meta { text-shadow: 0 1px 4px rgba(0,0,0,.6); }
 
 /* 🖼️ หน้าสินค้าที่มีรูปปกจริง → พื้นขาว + ข้อความสีเข้ม */
 .detail-cover.has-img { background: #fff !important; color: var(--ink); }

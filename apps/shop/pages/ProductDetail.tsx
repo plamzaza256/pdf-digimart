@@ -5,7 +5,7 @@ import { formatPrice, pagesLabel } from '../data/products';
 import OrderLineButton from '@shared/components/OrderLineButton';
 import RatingModal from '../components/RatingModal';
 import { parseFileSize } from '@shared/lib/fileSize';
-import { coverUrlFromFiles, coverUrlFromSheet, sampleUrl } from '@shared/lib/media';
+import { coverUrlFromFiles, coverUrlFromSheet, sampleEmbedUrl } from '@shared/lib/media';
 
 /**
  * 👁️ ตัวอย่างไฟล์ PDF
@@ -13,12 +13,15 @@ import { coverUrlFromFiles, coverUrlFromSheet, sampleUrl } from '@shared/lib/med
  * ถ้ามีไฟล์ public/samples/{รหัสสินค้า}.pdf → แสดงฝังในหน้า
  * ถ้าไม่มี → ซ่อนทั้งกล่อง (ไม่มีข้อความรบกวน)
  */
-function SamplePreview({ productId }: { productId: string }) {
+function SamplePreview({ product }: { product: { id: string; sampleUrl?: string } }) {
   const [has, setHas] = useState(false);
-  const url = sampleUrl(productId);
+  const url = sampleEmbedUrl(product);
+  const fromSheet = !!String(product.sampleUrl || '').trim();
 
   useEffect(() => {
     let cancelled = false;
+    if (fromSheet) { setHas(true); return; }
+    // ไฟล์ในเว็บ → เช็คว่ามีจริงไหม
     fetch(url, { method: 'HEAD' })
       .then((r) => {
         if (!cancelled) setHas(r.ok);
@@ -29,7 +32,7 @@ function SamplePreview({ productId }: { productId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, fromSheet]);
 
   if (!has) return null;
 
@@ -95,7 +98,7 @@ export default function ProductDetail() {
             {p.fileSize ? ' • ' + p.fileSize : ''}
           </p>
           {/* 👁️ ตัวอย่างไฟล์ PDF (ถ้ามีไฟล์ตัวอย่าง) */}
-          <SamplePreview productId={p.id} />
+          <SamplePreview product={p} />
         </div>
         <div>
           <span className="pill">{p.category}</span>
