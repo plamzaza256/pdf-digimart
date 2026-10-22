@@ -200,6 +200,9 @@ function doGet(e) {
     // ⭐ คะแนนเฉลี่ยของเว็บไซต์ (อ่านอย่างเดียว)
     if (action === 'website.rating') return _json(_websiteRatingStat());
 
+    // ⭐ คะแนนรวมของร้าน (อ่านจากช่อง "AVG All" ในแท็บ Rating — เจ้าของร้านทำสูตรไว้)
+    if (action === 'rating.stats') return _json(_ratingStats());
+
     return _json({ ok: false, error: 'ไม่รู้จักคำสั่ง: ' + action });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
@@ -919,6 +922,55 @@ function _setRating(user, body) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * ⭐ คะแนนรวมของร้าน — อ่านจากช่อง "AVG All" ในแท็บ Rating
+ *
+ * เจ้าของร้านทำสูตรไว้เองในคอลัมน์สรุป (หัวข้อ "AVG All")
+ *   → ค่าเฉลี่ยอยู่ใต���หัวข้อลงมา 1 แถว
+ *   → จำนวนคน = ตัวเลขถัดไปที่ไม่ว่างในคอลัมน์เดียวกัน
+ *
+ * 🛡 อ่านอย่างเดียว ไม่เขียนอะไรลงชีต
+ *
+ * @return {Object} { ok, avg, count }
+ */
+function _ratingStats() {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_RATING);
+  if (!sh) return { ok: true, avg: 0, count: 0 };
+
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return { ok: true, avg: 0, count: 0 };
+
+  const all = sh.getRange(1, 1, lastRow, lastCol).getValues();
+
+  // 🔎 หาหัวข้อ "AVG All" (อยู่ในแถวหัวตาราง)
+  let hr = -1;
+  let hc = -1;
+  for (let r = 0; r < Math.min(6, all.length); r++) {
+    for (let c = 0; c < all[r].length; c++) {
+      if (_normKey(all[r][c]) === 'avgall') { hr = r; hc = c; break; }
+    }
+    if (hr !== -1) break;
+  }
+  if (hr === -1) return { ok: true, avg: 0, count: 0 };
+
+  // ⭐ ค่าเฉลี่ย = ช่องใต้หัวข้อลงมา 1 แถว
+  const avg = _num(hr + 1 < all.length ? all[hr + 1][hc] : 0);
+
+  // 🔢 จำนวนคน = ตัวเลขถัดไปที่ไม่ว่างในคอลัมน์เดียวกัน
+  let count = 0;
+  for (let r = hr + 2; r < all.length; r++) {
+    const v = all[r][hc];
+    if (v === '' || v === null || v === undefined) continue;
+    const n = Number(v);
+    if (!isFinite(n)) continue;
+    count = n;
+    break;
+  }
+
+  return { ok: true, avg: Math.round(avg * 10) / 10, count: count };
 }
 
 /**

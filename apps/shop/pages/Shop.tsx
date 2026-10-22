@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useShop } from '../store/shop';
+import { apiRatingStats } from '@shared/lib/api';
 import ProductCard from '../components/ProductCard';
 
 export default function Shop() {
@@ -7,6 +8,21 @@ export default function Shop() {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<string>('ทั้งหมด');
   const [sort, setSort] = useState('popular');
+  // ⭐ คะแนนรวมของร้าน (เฉลี่ย + จำนวนคน) — อ่านจากชีต
+  const [ratingStats, setRatingStats] = useState<{ avg: number; count: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiRatingStats()
+      .then((r) => {
+        if (cancelled || !r.ok) return;
+        setRatingStats({ avg: Number(r.avg || 0), count: Number(r.count || 0) });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 🏷️ หมวดหมู่ดึงจากสินค้าที่โหลดมาจริง → ตรงกับ dropdown ในชีตเสมอ
   const categories = useMemo(() => {
@@ -48,14 +64,22 @@ export default function Shop() {
       <p className="muted">กดดาวเก็บสินค้าที่ถูกใจ แล้วกดสั่งซื้อผ่าน LINE OA</p>
 
       {/* 🧾 ยอดขายรวม (อ่านจากคอลัมน์ sales ในชีต Products) */}
-      {salesSummary.total > 0 && (
+      {salesSummary.total > 0 || (ratingStats && ratingStats.count > 0) ? (
         <div className="sales-stats">
-          <div className="stat-box">
-            <b>{salesSummary.total}</b>
-            <span>ขายไปแล้ว</span>
-          </div>
+          {salesSummary.total > 0 && (
+            <div className="stat-box">
+              <b>{salesSummary.total}</b>
+              <span>ขายไปแล้ว</span>
+            </div>
+          )}
+          {ratingStats && ratingStats.count > 0 && (
+            <div className="stat-box">
+              <b>⭐ {ratingStats.avg.toFixed(1)}</b>
+              <span>จาก {ratingStats.count} คน</span>
+            </div>
+          )}
         </div>
-      )}
+      ) : null}
 
       <div className="toolbar">
         <input

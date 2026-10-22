@@ -250,3 +250,13 @@ export async function apiWebsiteRating() {
 export function apiWebsiteRatingMine(email: string, token: string) {
   return call('website.rating.mine', { email, token });
 }
+
+/**
+ * ⭐ คะแนนรวมของร้าน (เฉลี่ย + จำนวนคนที่ให้คะแนน)
+ *
+ * อ่านจากช่อง "AVG All" ในแท็บ Rating (เจ้าของร้านทำสูตรไว้เอง)
+ */
+export async function apiRatingStats() {
+  const res = await fetch(`${apiUrl()}?action=rating.stats`);
+  return (await res.json()) as { ok: boolean; avg?: number; count?: number };
+}
