@@ -99,7 +99,10 @@ a { color: inherit; }
 .warn-box { background: var(--warn-bg); border: 1px solid var(--warn-line); }
 
 /* hero */
-.hero { padding: 36px 16px 8px; max-width: 760px; }
+/* 🏠 หัวเว็บ — กว้างเท่าส่วนอื่นของหน้า (ชิดซ้ายเหมือนกัน)
+   เดิม max-width: 760px ทำให้บล็อกนี้ถูกจัดกึ่งกลางจอ ไม่ตรงกับหัวข้อสินค้า */
+.hero { padding: 36px 16px 8px; }
+.hero-text { max-width: 760px; }
 .hero h1 { font-size: clamp(1.7rem, 4vw, 2.7rem); line-height: 1.25; margin: 12px 0; }
 .hero-cta { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
 .hero-points { padding: 0; list-style: none; display: grid; gap: 6px; color: #334155; }
