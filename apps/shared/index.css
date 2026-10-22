@@ -284,3 +284,23 @@ a { color: inherit; }
 .rate-comment textarea { margin-top: 6px; font-weight: 400; resize: vertical; }
 .rate-error { color: #dc2626; font-weight: 600; margin: 10px 0 0; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+
+/* 🏷️ ป้ายบนหน้าสินค้า (ข้างป้าย PDF) */
+.cover-badges { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cover-wip.inline { position: static; background: #f59e0b; color: #fff; font-size: .72rem; font-weight: 800; padding: 3px 10px; border-radius: 6px; }
+
+/* 📝 หมายเหตุเจ้าของร้าน (อยู่ใต้แถว "อัปเดต") */
+.spec div.note-row { display: block; }
+.spec div.note-row dt { margin-bottom: 6px; font-weight: 600; }
+.spec .admin-note {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-left: 4px solid #f59e0b;
+  color: #78350f;
+  padding: 10px 14px;
+  border-radius: 10px;
+  white-space: pre-wrap;
+  text-align: left;
+  font-size: .92rem;
+  line-height: 1.6;
+}

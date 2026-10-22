@@ -130,7 +130,7 @@ export default function ProductDetail() {
             <div><dt>อัปเดต</dt><dd>{p.createdAt}</dd></div>
             {/* 📝 หมายเหตุจากเจ้าของร้าน (คอลัมน์ admin_note ในชีต Products) */}
             {p.adminNote && (
-              <div>
+              <div className="note-row">
                 <dt>หมายเหตุ</dt>
                 <dd className="admin-note">{p.adminNote}</dd>
               </div>
