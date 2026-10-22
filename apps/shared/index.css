@@ -233,3 +233,54 @@ a { color: inherit; }
 
 .btn-google { font-weight: 600; }
 .btn-google svg { flex: none; }
+
+/* ==================== ⭐ ระบบให้คะแนนสินค้า ==================== */
+.btn-rate { display: inline-flex; align-items: center; gap: 8px; }
+.rate-thumb { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; }
+.rate-thumb img { width: 20px; height: 20px; object-fit: contain; display: block; }
+.rate-thumb-emoji { font-size: 1rem; line-height: 1; display: none; }
+.rate-thumb[data-fallback="1"] img { display: none; }
+.rate-thumb[data-fallback="1"] .rate-thumb-emoji { display: block; }
+.rate-done { font-weight: 600; opacity: .9; font-size: .85rem; }
+
+/* ป๊อปอัพ */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, .55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; z-index: 100; overflow-y: auto;
+}
+.modal-card {
+  background: #fff; border-radius: 16px; padding: 26px 24px 22px;
+  width: 100%; max-width: 440px; position: relative;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, .3);
+  animation: modal-in .16s ease-out;
+}
+@keyframes modal-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+.modal-x {
+  position: absolute; top: 10px; right: 12px; border: 0; background: transparent;
+  font-size: 1.6rem; line-height: 1; color: #94a3b8; cursor: pointer; padding: 4px 8px; border-radius: 8px;
+}
+.modal-x:hover { background: #f1f5f9; color: #0f172a; }
+.modal-card h3 { margin: 0 0 4px; font-size: 1.15rem; }
+.modal-sub { margin: 0 0 18px; }
+.center { text-align: center; }
+
+/* ช่องเลือกดาว */
+.star-row { display: flex; align-items: center; justify-content: center; gap: 2px; margin: 6px 0 2px; }
+.star-pick { position: relative; display: inline-block; width: 42px; height: 42px; }
+.star-shape {
+  position: absolute; inset: 0; font-size: 38px; line-height: 42px;
+  color: #e2e8f0; cursor: pointer; user-select: none; transition: color .12s;
+}
+.star-shape.is-full { color: #f59e0b; }
+.star-shape.is-half {
+  background: linear-gradient(90deg, #f59e0b 50%, #e2e8f0 50%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.star-half { position: absolute; left: 0; top: 0; width: 50%; height: 100%; cursor: pointer; }
+.star-num { margin-inline-start: 10px; font-weight: 800; font-size: 1.1rem; color: #b45309; min-width: 34px; }
+
+.rate-comment { display: block; margin-top: 14px; font-weight: 600; font-size: .9rem; }
+.rate-comment textarea { margin-top: 6px; font-weight: 400; resize: vertical; }
+.rate-error { color: #dc2626; font-weight: 600; margin: 10px 0 0; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }

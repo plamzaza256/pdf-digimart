@@ -1,13 +1,18 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useShop } from '../store/shop';
 import { formatPrice, pagesLabel } from '../data/products';
 import OrderLineButton from '@shared/components/OrderLineButton';
+import RatingModal from '../components/RatingModal';
 import { parseFileSize } from '@shared/lib/fileSize';
 
 export default function ProductDetail() {
   const { id } = useParams();
   const { products, isFavorite, toggleFavorite } = useShop();
   const p = products.find((x) => x.id === id);
+  // ⭐ ป๊อปอัพให้คะแนน
+  const [rateOpen, setRateOpen] = useState(false);
+  const [myRating, setMyRating] = useState<number | null>(null);
 
   if (!p) {
     return (
@@ -65,6 +70,28 @@ export default function ProductDetail() {
                 {liked ? 'ถูกใจแล้ว' : 'กดถูกใจ'}
               </button>
               <OrderLineButton size="lg" productTitle={p.title} />
+              {/* ⭐ ปุ่มให้คะแนน — สีน้ำเงินแบบปุ่มหลัก ข้อความสีขาว */}
+              <button
+                className="btn btn-primary btn-lg btn-rate"
+                onClick={() => setRateOpen(true)}
+              >
+                <span className="rate-thumb" aria-hidden="true">
+                  <img
+                    src="/thumbup.png"
+                    alt=""
+                    onError={(e) => {
+                      // ยังไม่ได้อัปโหลดไอคอน → ใช้ emoji แทน
+                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                      (e.currentTarget.parentElement as HTMLElement).dataset.fallback = '1';
+                    }}
+                  />
+                  <span className="rate-thumb-emoji">👍</span>
+                </span>
+                Rate
+                {myRating !== null && myRating > 0 && (
+                  <span className="rate-done">· คุณให้ {myRating.toFixed(1)}</span>
+                )}
+              </button>
             </div>
             {/* ลิงก์แบบ short (lin.ee/xxx) ต่อ ?text= ไม่ได้ → ต้องให้ลูกค้าเห็นชื่อสินค้าบนหน้าเว็บแทน */}
             <p className="muted small">
@@ -93,6 +120,15 @@ export default function ProductDetail() {
           </dl>
         </div>
       </div>
+
+      {rateOpen && (
+        <RatingModal
+          productId={p.id}
+          productTitle={p.title}
+          onClose={() => setRateOpen(false)}
+          onSaved={(r) => setMyRating(r)}
+        />
+      )}
     </div>
   );
 }

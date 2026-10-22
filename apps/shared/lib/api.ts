@@ -210,3 +210,28 @@ export async function apiSheetStructure() {
     sheets?: unknown[];
   };
 }
+
+// ============================ ⭐ ให้คะแนนสินค้า ============================
+
+/**
+ * ⭐ บันทึกคะแนน (ต้องล็อกอิน — กันสแปมแบบไม่ระบุตัวตน)
+ *
+ * เขียนลงแท็บ "Rating" แถว 3 ลงไป
+ *   Rating_id | email | User_id | product_id | created_at | rating | comment
+ *
+ * 1 คน = 1 แถวต่อ 1 สินค้า (บันทึกซ้ำ = ทับแถวเดิม)
+ */
+export function apiRateProduct(
+  email: string,
+  token: string,
+  productId: string,
+  rating: number,
+  comment: string,
+) {
+  return call('rating.set', { email, token, product_id: productId, rating, comment });
+}
+
+/** ⭐ คะแนนของผู้ใช้เอง (ต้องล็อกอิน) — ใช้เติมช่องให้คะแนนตอนเปิดครั้งแรก */
+export function apiMyRating(email: string, token: string, productId: string) {
+  return call('rating.mine', { email, token, product_id: productId });
+}

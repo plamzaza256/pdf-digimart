@@ -29,6 +29,7 @@ const ADMIN_NAME = 'เจ้าของร้าน';
 const SHEET_PRODUCTS = 'Products';
 const SHEET_CONFIG = 'Config';
 const SHEET_USERS = 'user_id';
+const SHEET_RATING = 'Rating';
 
 // 🗂️ หมวดหมู่ — ตรงกับ dropdown ในชีต (แก้ในชีตได้ แต่ถ้าเพิ่มค่าใหม่ต้องแจ้ง)
 const CATEGORY_LIST = ['ข้อสอบ', 'หนังสือ', 'Flashcard', 'อื่นๆ'];
@@ -218,6 +219,18 @@ function doPost(e) {
     //    คืนแค่ "ชื่อแท็บ + ชื่อคอลัมน์ + dropdown" ไม่มีข้อมูลลูกค้า/ยอดขาย
     if (action === 'sheet.structure') {
       return _json(_sheetStructure());
+    }
+
+    // --- ⭐ ให้คะแนนสินค้า (ต้องล็อกอิน — กันสแปมแบบไม่ระบุตัวตน) ---
+    if (action === 'rating.set') {
+      const sess = _session(body);
+      if (!sess.ok) return _json({ ok: false, error: 'กรุณาเข้าสู่ระบบก่อนให้คะแนน' });
+      return _json(_setRating(sess.user, body));
+    }
+    if (action === 'rating.mine') {
+      const sess = _session(body);
+      if (!sess.ok) return _json({ ok: false, error: 'กรุณาเข้าสู่ระบบก่อน' });
+      return _json(_myRating(sess.user, body.product_id));
     }
 
     return _json({ ok: false, error: 'ไม่รู้จักคำสั่ง: ' + action });
@@ -755,6 +768,138 @@ function _productDetail(id) {
   const found = all.products.filter(function (p) { return p.id === id; })[0];
   if (!found) return { ok: false, error: 'ไม่พบสินค้า' };
   return { ok: true, product: found };
+}
+
+
+/**
+ * ⭐ บันทึกคะแนนสินค้าลงแท็บ "Rating"
+ *
+ * โครงชีต (เจ้าของร้านสร้างเอง):
+ *   แถว 1 = "Rating Data"   แถว 2 = หัวตาราง   แถว 3+ = ข้อมูล
+ *   Rating_id | email | User_id | product_id | created_at | rating | comment
+ *
+ * 🛡 เขียนตาม "ชื่อคอลัมน์" เท่านั้น (เจ้าของร้านจัดโครงชีตเองได้)
+ * 🛡 1 คน = 1 แถวต่อ 1 สินค้า → บันทึกซ้ำจะทับแถวเดิม
+ * 🛡 ใช้ LockService กันเขียนชนกัน
+ */
+function _setRating(user, body) {
+  const productId = String(body.product_id || '').trim();
+  if (!productId) return { ok: false, error: 'ไม่รู้จักสินค้าที่ให้คะแนน' };
+
+  // ⭐ คะแนน: 0 – 5 ขั้นละ 0.5
+  const raw = Number(body.rating);
+  if (!isFinite(raw) || raw <= 0 || raw > 5) {
+    return { ok: false, error: 'คะแนนต้องอยู่ระหว่าง 0.5 ถึง 5 ดาว' };
+  }
+  const rating = Math.round(raw * 2) / 2;
+
+  const comment = String(body.comment || '').trim().slice(0, 500);
+  const email = String(user.email || '').toLowerCase();
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_RATING);
+    if (!sh) return { ok: false, error: 'ไม่พบแท็บ Rating ในชีต' };
+
+    const lastRow = sh.getLastRow();
+    const lastCol = sh.getLastColumn();
+    if (lastCol < 1) {
+      return { ok: false, error: 'แท็บ Rating ยังไม่มีคอลัมน์ กรุณาสร้างหัวตารางก่อน' };
+    }
+    const all = sh.getRange(1, 1, Math.max(lastRow, 2), lastCol).getValues();
+    const hIdx = _findHeaderRow(all);
+    const headers = all[hIdx].map(function (h) { return String(h || '').trim(); });
+
+    const cEmail = _colIndex(headers, 'email');
+    const cProduct = _colIndex(headers, 'product_id');
+    const cId = _colIndex(headers, 'Rating_id');
+    const cUser = _colIndex(headers, 'User_id');
+    const cAt = _colIndex(headers, 'created_at');
+    const cRating = _colIndex(headers, 'rating');
+    const cComment = _colIndex(headers, 'comment');
+
+    if (cProduct === -1 || cRating === -1) {
+      return { ok: false, error: 'หัวตารางแท็บ Rating ไม่ครบ (ต้องมี product_id และ rating)' };
+    }
+
+    // 🔎 หาแถวเดิมของคนคนนี้ + สินค้านี้
+    let foundRow = -1;
+    for (let r = hIdx + 1; r < all.length; r++) {
+      const row = all[r];
+      if (!row[0]) continue;
+      const rowEmail = String(cEmail !== -1 ? row[cEmail] || '' : '').trim().toLowerCase();
+      const rowProduct = String(row[cProduct] || '').trim();
+      if (rowEmail === email && rowProduct === productId) { foundRow = r + 1; break; }
+    }
+
+    const values = {};
+    if (cId !== -1) values[cId] = Utilities.getUuid();
+    if (cEmail !== -1) values[cEmail] = email;
+    if (cUser !== -1) values[cUser] = user.user_id || '';
+    if (cProduct !== -1) values[cProduct] = productId;
+    if (cAt !== -1) values[cAt] = new Date();
+    if (cRating !== -1) values[cRating] = rating;
+    if (cComment !== -1) values[cComment] = comment;
+
+    if (foundRow > 0) {
+      // ✏️ แก้แถวเดิม (คง Rating_id เดิมไว้)
+      for (const c in values) {
+        if (Number(c) === cId) continue;
+        sh.getRange(foundRow, Number(c) + 1).setValue(values[c]);
+      }
+      return { ok: true, message: 'บันทึกคะแนนแล้ว (อัปเดตของเดิม)', rating: rating };
+    }
+
+    // ➕ เพิ่มแถวใหม่
+    const row = [];
+    for (let i = 0; i < headers.length; i++) row.push('');
+    for (const c in values) row[Number(c)] = values[c];
+    sh.appendRow(row);
+
+    return { ok: true, message: 'ขอบคุณสำหรับคะแนน!', rating: rating };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** ⭐ คะแนนของผู้ใช้เอง (ใช้เติมช่องตอนเปิดป๊อปอัพครั้งแรก) */
+function _myRating(user, productId) {
+  const pid = String(productId || '').trim();
+  if (!pid) return { ok: false, error: 'ไม่รู้จักสินค้า' };
+
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_RATING);
+  if (!sh) return { ok: true, rating: 0, comment: '' };
+
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 2) return { ok: true, rating: 0, comment: '' };
+
+  const all = sh.getRange(1, 1, lastRow, lastCol).getValues();
+  const hIdx = _findHeaderRow(all);
+  const headers = all[hIdx].map(function (h) { return String(h || '').trim(); });
+  const cEmail = _colIndex(headers, 'email');
+  const cProduct = _colIndex(headers, 'product_id');
+  const cRating = _colIndex(headers, 'rating');
+  const cComment = _colIndex(headers, 'comment');
+  if (cProduct === -1 || cRating === -1) return { ok: true, rating: 0, comment: '' };
+
+  const email = String(user.email || '').toLowerCase();
+  for (let r = hIdx + 1; r < all.length; r++) {
+    const row = all[r];
+    if (!row[0]) continue;
+    const rowEmail = String(cEmail !== -1 ? row[cEmail] || '' : '').trim().toLowerCase();
+    if (rowEmail !== email) continue;
+    if (String(row[cProduct] || '').trim() !== pid) continue;
+    return {
+      ok: true,
+      rating: Number(row[cRating] || 0),
+      comment: cComment !== -1 ? String(row[cComment] || '') : ''
+    };
+  }
+  return { ok: true, rating: 0, comment: '' };
 }
 
 /**
