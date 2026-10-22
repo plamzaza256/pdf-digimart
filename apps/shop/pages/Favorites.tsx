@@ -34,7 +34,10 @@ export default function Favorites() {
           {items.map((p) => (
             <div key={p.id} className="cart-line">
               <div>
-                <b>{p.title}</b>
+                {/* 🔗 ชื่อสินค้า = กดไปหน้าสินค้าได้ */}
+                <Link to={`/product/${p.id}`} className="fav-item-title">
+                  {p.title}
+                </Link>
                 <div className="muted small">{formatPrice(p.price)} / ไฟล์</div>
               </div>
               <div className="cart-ctrl">

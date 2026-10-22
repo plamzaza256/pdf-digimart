@@ -349,3 +349,7 @@ a { color: inherit; }
 .web-rate-stat { color: #b45309; font-weight: 800; }
 .web-rate-actions { display: flex; justify-content: flex-end; margin-top: 14px; }
 .ok-box { background: #f0fdf4; border: 1px solid #86efac; color: #166534; }
+
+/* 🔗 ชื่อสินค้าในหน้า "สินค้าที่ถูกใจ" — กดไปหน้าสินค้าได้ */
+.fav-item-title { display: inline-block; font-weight: 800; color: var(--ink); text-decoration: none; }
+.fav-item-title:hover { color: var(--brand-dark); text-decoration: underline; }
