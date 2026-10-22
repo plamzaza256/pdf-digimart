@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@shared/store/auth';
-import { apiMyRating, apiRateProduct } from '@shared/lib/api';
+import { apiMyRating, apiRateProduct, apiRateWebsite } from '@shared/lib/api';
 
 /**
  * ⭐ ป๊อปอัพให้คะแนนสินค้า
@@ -14,6 +14,8 @@ import { apiMyRating, apiRateProduct } from '@shared/lib/api';
  */
 
 interface Props {
+  /** 'product' = ให้คะแนนสินค้า · 'website' = ให้คะแนนเว็บไซต์ */
+  kind?: 'product' | 'website';
   productId: string;
   productTitle: string;
   onClose: () => void;
@@ -22,7 +24,13 @@ interface Props {
 
 const STARS = [1, 2, 3, 4, 5];
 
-export default function RatingModal({ productId, productTitle, onClose, onSaved }: Props) {
+export default function RatingModal({
+  kind = 'product',
+  productId,
+  productTitle,
+  onClose,
+  onSaved,
+}: Props) {
   const { user, token } = useAuth();
   const [value, setValue] = useState(0);
   const [comment, setComment] = useState('');
@@ -78,7 +86,10 @@ export default function RatingModal({ productId, productTitle, onClose, onSaved 
     setBusy(true);
     setError('');
     try {
-      const r = await apiRateProduct(user.email, token, productId, value, comment.trim());
+      const r =
+        kind === 'website'
+          ? await apiRateWebsite(user.email, token, value, comment.trim())
+          : await apiRateProduct(user.email, token, productId, value, comment.trim());
       if (!r.ok) {
         setError(r.error || 'บันทึกคะแนนไม่สำเร็จ ลองใหม่อีกครั้ง');
         return;
@@ -105,7 +116,7 @@ export default function RatingModal({ productId, productTitle, onClose, onSaved 
           ×
         </button>
 
-        <h3>ให้คะแนนสินค้า</h3>
+        <h3>{kind === 'website' ? 'ให้คะแนนเว็บไซต์' : 'ให้คะแนนสินค้า'}</h3>
         <p className="muted small modal-sub">{productTitle}</p>
 
         {!user || !token ? (
@@ -162,14 +173,14 @@ export default function RatingModal({ productId, productTitle, onClose, onSaved 
 
             {/* 📝 ความคิดเห็น (ไม่บังคับ) */}
             <label className="rate-comment">
-              ความคิดเห็น (ไม่บังคับ)
+              {kind === 'website' ? 'ความคิดเห็นเกี่ยวกับเว็บไซต์ (ไม่บังคับ)' : 'ความคิดเห็น (ไม่บังคับ)'}
               <textarea
                 className="input"
                 rows={3}
                 maxLength={500}
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder="เช่น ข้อสอบชัด ตรงเลข ถูกใจมาก"
+                placeholder={kind === 'website' ? 'เช่น สั่งง่าย ตอบไว ขอบคุณค่ะ' : 'เช่น ข้อสอบชัด ตรงเลข ถูกใจมาก'}
               />
             </label>
 
