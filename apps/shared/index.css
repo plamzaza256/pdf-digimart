@@ -113,14 +113,20 @@ a { color: inherit; }
 /* section / card */
 .sec-title { font-size: 1.35rem; margin: 28px 0 12px; }
 .sec-head { display: flex; align-items: end; justify-content: space-between; }
-.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+/* 🟦 กริดสินค้า — ยืดเต็มแถวเสมอ
+   ถ้ามีสินค้า 2 ใบ → 2 คอลัมน์กว้างเต็มแถว (ไม่เหลือช่องว่างขวา)
+   ถ้ามี 4 ใบ → 4 คอลัมน์ · ถ้ามี 5 ใบ → 4 คอลัมน์ + ล้มอีกแถว */
+.grid4 {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--shadow); }
-.cover { min-height: 150px; color: #fff; padding: 14px; display: flex; flex-direction: column; gap: 8px; text-decoration: none; }
+.cover { min-height: 230px; color: #fff; padding: 16px; display: flex; flex-direction: column; gap: 8px; text-decoration: none; }
 .cover-pdf { background: rgba(255,255,255,.25); align-self: flex-start; font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; }
 .cover-pdf.big { font-size: 0.85rem; }
-.cover-title { font-weight: 800; font-size: 1rem; line-height: 1.4; }
+.cover-title { font-weight: 800; font-size: 1.08rem; line-height: 1.4; }
 .cover-meta { font-size: 0.8rem; opacity: 0.9; }
 .card-body { padding: 12px 14px 14px; display: grid; gap: 8px; }
 .pill { display: inline-block; background: #eef2ff; color: #3730a3; font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; justify-self: start; }
@@ -183,7 +189,6 @@ a { color: inherit; }
 
 /* responsive */
 @media (max-width: 960px) {
-  .grid4 { grid-template-columns: repeat(2, 1fr); }
   .grid3 { grid-template-columns: 1fr; }
     .detail-grid { grid-template-columns: 1fr; }
   .toolbar { grid-template-columns: 1fr; }
