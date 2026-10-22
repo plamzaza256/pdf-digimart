@@ -1,18 +1,17 @@
 import { Link } from 'react-router-dom';
 import { useShop } from '../store/shop';
-import { useAuth } from '@shared/store/auth';
 import { formatPrice } from '../data/products';
 import OrderLineButton from '@shared/components/OrderLineButton';
 
 /**
  * หน้า "สินค้าที่ถูกใจ"
  *
- * ⭐ ดาวถูกใจจะผูกกับอีเมลของผู้ใช้ (เก็บในชีต)
- *    → ล็อกอินใหม่ / เปลี่ยนเครื่อง / ล้างเบราว์เซอร์ ดาวยังอยู่
+ * ⭐ ดาวถูกใจเก็บในเบราว์เซอร์ของผู้ใช้เท่านั้น (ไม่เขียนลงชีต)
+ *    → เปลี่ยนเครื่อง / ล้างข้อมูลเบราว์เซอร์ = ดาวหาย
+ *    → ไม่ต้องล็อกอินก็กดได้
  */
 export default function Favorites() {
   const { favorites, products, toggleFavorite } = useShop();
-  const { user } = useAuth();
 
   const items = favorites
     .map((id) => products.find((p) => p.id === id))
@@ -25,14 +24,10 @@ export default function Favorites() {
         สินค้าที่คุณกดถูกใจไว้ — กดสั่งซื้อเพื่อไปที่ LINE OA ของร้าน
       </p>
 
-      {!user && (
-        <div className="notice warn-box">
-          ⭐ ดาวที่กดไว้อยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น (ไม่ถูกส่งไปเซิร์ฟเวอร์)
-          <br />
-          <Link to="/login" className="link">เข้าสู่ระบบ</Link> เพื่อให้ดาวผูกกับอีเมลของคุณ
-          (ล็อกอินใหม่หรือเปลี่ยนเครื่องก็ยังเห็นดาวเดิม)
-        </div>
-      )}
+      <div className="notice">
+        ⭐ ดาวที่กดไว้อยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น — ไม่ถูกส่งไปที่เซิร์ฟเวอร์
+        (เปลี่ยนเครื่องหรือล้างข้อมูลเบราว์เซอร์ = ดาวหาย)
+      </div>
 
       {items.length === 0 ? (
         <div className="empty">
