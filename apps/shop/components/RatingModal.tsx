@@ -159,9 +159,6 @@ export default function RatingModal({ productId, productTitle, onClose, onSaved 
               })}
               <span className="star-num">{value > 0 ? value.toFixed(1) : '—'}</span>
             </div>
-            <p className="muted small center">
-              คลิกครึ่งซ้ายของดาว = ครึ่งดาว · คลิกครึ่งขวา = เต็มดาว
-            </p>
 
             {/* 📝 ความคิดเห็น (ไม่บังคับ) */}
             <label className="rate-comment">

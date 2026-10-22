@@ -9,7 +9,6 @@ import Shop from './pages/Shop';
 import ProductDetail from './pages/ProductDetail';
 import Login from './pages/Login';
 import Favorites from './pages/Favorites';
-import SheetStructure from './pages/SheetStructure';
 
 export default function App() {
   return (
@@ -27,7 +26,6 @@ export default function App() {
                 {/* สมัครสมาชิก = เข้าสู่ระบบด้วย Google หน้าเดียวกัน ไม่ต้องมีหน้าแยก */}
                 <Route path="/register" element={<Navigate to="/login" replace />} />
                 <Route path="/favorites" element={<Favorites />} />
-                <Route path="/sheet" element={<SheetStructure />} />
                 {/* หน้าแอดมินย้ายไปอีกเว็บแยกแล้ว — โยกผู้ใช้กลับหน้าแรก */}
                 <Route path="/admin" element={<Navigate to="/" replace />} />
                 <Route path="*" element={<Navigate to="/" replace />} />

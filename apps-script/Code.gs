@@ -196,8 +196,6 @@ function doGet(e) {
     if (action === 'product.detail') return _json(_productDetail(p.id));
     if (action === 'config') return _json(_getConfig());
     if (action === 'public.config') return _json(getPublicConfig());
-    // 📋 โครงสร้างชีต (อ่านอย่างเดียว ไม่ต้องล็อกอิน) — รองรับทั้ง GET และ POST
-    if (action === 'sheet.structure') return _json(_sheetStructure());
 
     // ⭐ คะแนนเฉลี่ยของเว็บไซต์ (อ่านอย่างเดียว)
     if (action === 'website.rating') return _json(_websiteRatingStat());
@@ -220,11 +218,6 @@ function doPost(e) {
 
     if (action === 'user.check') return _json(_checkUser(body.email));
 
-    // --- 📋 โครงสร้างชีตแบบสาธารณะ (ไม่ต้องล็อกอิน) ---
-    //    คืนแค่ "ชื่อแท็บ + ชื่อคอลัมน์ + dropdown" ไม่มีข้อมูลลูกค้า/ยอดขาย
-    if (action === 'sheet.structure') {
-      return _json(_sheetStructure());
-    }
 
     // --- ⭐ ให้คะแนนสินค้า (ต้องล็อกอิน — กันสแปมแบบไม่ระบุตัวตน) ---
     if (action === 'rating.set') {
@@ -1003,108 +996,6 @@ function _myRating(user, productId) {
     };
   }
   return { ok: true, rating: 0, comment: '' };
-}
-
-/**
- * 📋 โครงสร้างชีตแบบสาธารณะ (ไม่ต้องล็อกอิน)
- *
- * 🛡 คืนแค่ "ชื่อแท็บ + ชื่อคอลัมน์ + ค่าใน dropdown"
- *    ไม่มีข้อมูลลูกค้า ไม่มียอดขาย ไม่มีอีเมล → เปิดเผยได้
- *    ประโยชน์: เช็คว่าเว็บอ่านชีตตรงช่องไหม โดยไม่ต้องเป็นแอดมิน
- */
-function _sheetStructure() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const out = [];
-
-  // 🛡 แท็บที่มีข้อมูลลูกค้า → ไม่แสดงค่า แสดงแค่โครงสร้าง
-  const PRIVATE_TABS = ['user_id', 'Favorites', 'Library'];
-
-  for (let i = 0; i < ss.getSheets().length; i++) {
-    const sh = ss.getSheets()[i];
-    const lastRow = sh.getLastRow();
-    const lastCol = sh.getLastColumn();
-    if (lastRow === 0) {
-      out.push({ name: sh.getName(), empty: true, headers: [], validations: [] });
-      continue;
-    }
-
-    // 🔎 หาแถวหัวตารางจริงอัตโนมัติ (บางชีตมีแถวชื่อรายงานที่แถว 1)
-    const all = sh.getRange(1, 1, lastRow, lastCol).getValues();
-    const hIdx = _findHeaderRow(all);
-    const headers = (all[hIdx] || []).map(function (h) {
-      return String(h || '');
-    });
-
-    // 📋 ตัวอย่างข้อมูล 3 แถว (ไม่แสดงในแท็บที่มีข้อมูลลูกค้า)
-    const isPrivate = PRIVATE_TABS.indexOf(sh.getName()) !== -1;
-    const sampleRows = Math.min(hIdx + 4, lastRow);
-
-    // 🧮 สูตรใน 4 แถวแรก (มักเป็นที่ทำ dropdown/สูตรคำนวณ)
-    //    สูตรไม่ใช่ข้อมูลลูกค้า → แสดงได้ (ช่วยให้เขียนโค้ดให้ตรง)
-    const formulas = sh.getRange(1, 1, sampleRows, lastCol).getFormulas();
-    const formulaCells = [];
-    for (let r = 0; r < formulas.length; r++) {
-      for (let c = 0; c < lastCol; c++) {
-        const f = String(formulas[r][c] || '');
-        if (f.charAt(0) === '=') {
-          formulaCells.push({
-            cell: _cellRef(r + 1, c + 1),
-            column: headers[c] || ('col' + (c + 1)),
-            formula: f.length > 300 ? f.slice(0, 300) + ' …' : f
-          });
-        }
-      }
-    }
-
-    // 🔽 ตรวจ dropdown (data validation) — ดูทั้งแถวหัวตารางและ 3 แถวข้อมูลแรก
-    const validations = [];
-    for (let c = 0; c < lastCol; c++) {
-      let found = null;
-      for (let r = hIdx; r < Math.min(hIdx + 4, lastRow); r++) {
-        try {
-          const v = sh.getRange(r + 1, c + 1).getDataValidation();
-          if (v) {
-            found = {
-              column: headers[c] || ('col' + (c + 1)),
-              type: String(v.getCriteriaType() || ''),
-              values: v.getCriteriaValues() || []
-            };
-            break;
-          }
-        } catch (e) {
-          // ช่องนี้ไม่มี validation
-        }
-      }
-      if (found) validations.push(found);
-    }
-
-    const sampleValues = [];
-    if (!isPrivate && lastRow > hIdx + 1) {
-      for (let r = hIdx + 1; r < Math.min(hIdx + 3, lastRow); r++) {
-        const row = {};
-        for (let c = 0; c < lastCol; c++) {
-          const key = headers[c] || ('col' + (c + 1));
-          const f = String(formulas[r][c] || '');
-          const v = all[r][c];
-          row[key] = f.charAt(0) === '=' ? f : v;
-        }
-        sampleValues.push(row);
-      }
-    }
-
-    out.push({
-      name: sh.getName(),
-      rowCount: lastRow - hIdx - 1,
-      columnCount: lastCol,
-      headers: headers,
-      validations: validations,
-      formulas: formulaCells,
-      sampleValues: sampleValues,
-      hasPrivateData: isPrivate
-    });
-  }
-
-  return { ok: true, sheets: out };
 }
 
 /** ชื่อเซลล์แบบ A1 (ใช้บอกตำแหน่งสูตร) */

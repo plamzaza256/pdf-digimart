@@ -108,7 +108,6 @@ export default function WebsiteRating() {
         ) : (
           <>
             <StarPicker value={value} onChange={setValue} />
-            <p className="muted small center">คลิกครึ่งซ้าย = ครึ่งดาว · คลิกครึ่งขวา = เต็มดาว</p>
 
             <label className="rate-comment">
               ความคิดเห็นเกี่ยวกับเว็บไซต์ (ไม่บังคับ)

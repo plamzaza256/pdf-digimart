@@ -57,7 +57,7 @@ public/          โลโก้ · favicon
 | `product.detail&id=` | สินค้า 1 ชิ้น |
 | `public.config` | ค่าร้าน + ค่า Firebase (หน้าเว็บดึงตอนเปิด) |
 | `config` | ค่าทั้งหมดจากแท็บ Config |
-| `sheet.structure` | โครงชีต (ชื่อแท็บ/คอลัมน์/dropdown/สูตร) — ไม่มีข้อมูลลูกค้า |
+| `website.rating` | คะแนนเฉลี่ยของเว็บไซต์ (อ่านอย่างเดียว) |
 
 **POST** (JSON)
 | action | ทำอะไร |
