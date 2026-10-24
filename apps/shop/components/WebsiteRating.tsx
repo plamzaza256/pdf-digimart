@@ -51,7 +51,7 @@ export default function WebsiteRating() {
           <h2 className="sec-title">⭐ ให้คะแนนเว็บไซต์</h2>
           {stats && stats.count > 0 && (
             <span className="web-rate-stat">
-              {stats.avg.toFixed(1)} ดาว · จาก {stats.count} คน
+              {stats.avg.toFixed(2)} ดาว · จาก {stats.count} คน
             </span>
           )}
         </div>

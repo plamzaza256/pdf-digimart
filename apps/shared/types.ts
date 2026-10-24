@@ -14,6 +14,8 @@ export interface Product {
   fileSize: string;
   rating: number;
   sales: number;
+  /** 👁️ จำนวนคนเปิดดู (นับโดยเซิร์ฟเวอร์) */
+  views: number;
   coverColor: string;
   tags: string[];
   /** 📝 หมายเหตุจากเจ้าของร้าน (คอลัมน์ admin_note ในชีต Products) */

@@ -260,3 +260,24 @@ export async function apiRatingStats() {
   const res = await fetch(`${apiUrl()}?action=rating.stats`);
   return (await res.json()) as { ok: boolean; avg?: number; count?: number };
 }
+
+// ============================ 👁️ นับคนเปิดดูสินค้า ============================
+
+/**
+ * 👁️ +1 จำนวนคนเปิดดูสินค้า
+ *
+ * 🔕 ไม่ต้องล็อกอิน (ทุกคนเปิดดูได้)
+ * 🛡 เว็บจะยิงคำสั่งนี้ "คนละ 1 ครั้งต่อ 30 นาที ต่อสินค้า"
+ *    กันตัวเลขบวมจากการรีเฟรชหน้า
+ * ⚠️ ล้มเหลวก็ปล่อยเลย — ห้ามขึ้น error ให้ลูกค้าเห็น
+ */
+export async function apiProductView(productId: string) {
+  try {
+    const res = await fetch(
+      `${apiUrl()}?action=product.view&id=${encodeURIComponent(productId)}`,
+    );
+    return (await res.json()) as { ok: boolean; views?: number };
+  } catch {
+    return { ok: false } as { ok: boolean; views?: number };
+  }
+}

@@ -26,9 +26,10 @@ export default function ProductCard({ p }: { p: Product }) {
         <p className="card-desc">{p.description}</p>
         <div className="card-meta">
           {/* ⛔ โชว์เฉพาะตัวเลขที่มีจริง — ไม่โชว์ยอดขายปลอม */}
-          {p.rating > 0 && <><span>⭐ {p.rating.toFixed(1)}</span><span>•</span></>}
+          {p.rating > 0 && <><span>⭐ {p.rating.toFixed(2)}</span><span>•</span></>}
+          {p.views > 0 && <><span>👁 {p.views.toLocaleString('th-TH')} ครั้ง</span><span>•</span></>}
           {p.sales > 0 && <span>ขายแล้ว {p.sales.toLocaleString('th-TH')}</span>}
-          {p.rating <= 0 && p.sales <= 0 && <span>สินค้าใหม่</span>}
+          {p.rating <= 0 && p.sales <= 0 && p.views <= 0 && <span>สินค้าใหม่</span>}
         </div>
         <div className="card-foot">
           <div className="price">

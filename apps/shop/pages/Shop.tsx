@@ -74,7 +74,7 @@ export default function Shop() {
           )}
           {ratingStats && ratingStats.count > 0 && (
             <div className="stat-box">
-              <b>⭐ {ratingStats.avg.toFixed(1)}</b>
+              <b>⭐ {ratingStats.avg.toFixed(2)}</b>
               <span>จาก {ratingStats.count} คน</span>
             </div>
           )}

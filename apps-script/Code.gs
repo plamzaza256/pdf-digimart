@@ -203,6 +203,9 @@ function doGet(e) {
     // ⭐ คะแนนรวมของร้าน (อ่านจากช่อง "AVG All" ในแท็บ Rating — เจ้าของร้านทำสูตรไว้)
     if (action === 'rating.stats') return _json(_ratingStats());
 
+    // 👁️ นับจำนวนคนเปิดดูสินค้า (ทุกคนเรียกได้ ไม่ต้องล็อกอิน)
+    if (action === 'product.view') return _json(_bumpViews(p.id));
+
     return _json({ ok: false, error: 'ไม่รู้จักคำสั่ง: ' + action });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
@@ -759,6 +762,8 @@ function _listProducts() {
       // 🧾 ยอดขาย: อ่านจากคอลัมน์ sales ในแท็บ Products
       //    (เจ้าของร้านลิงก์สูตร COUNTIF มาจาก Sales Tracker ไว้แล้ว)
       sales: _num(r.sales),
+      // 👁️ จำนวนคนเปิดดู (นับโดยเซิร์ฟเวอร์ — คอลัมน์ views ถ้าไม่มีจะเพิ่มให้เอง)
+      views: _num(r.views),
       coverColor: r.cover_color || '#1d4ed8',
       // 📝 หมายเหตุจากเจ้าของร้าน (คอลัมน์ admin_note)
       adminNote: String(r.admin_note || '').trim(),
@@ -874,6 +879,7 @@ function _setRating(user, body) {
         if (Number(c) === cId) continue;
         sh.getRange(foundRow, Number(c) + 1).setValue(values[c]);
       }
+      _notifyRating(email, productId, rating, comment, true);
       return { ok: true, message: 'บันทึกคะแนนแล้ว (อัปเดตของเดิม)', rating: rating, row: foundRow };
     }
 
@@ -916,6 +922,7 @@ function _setRating(user, body) {
       sh.getRange(targetRow, Number(c) + 1).setValue(values[c]);
     }
 
+    _notifyRating(email, productId, rating, comment, false);
     return { ok: true, message: 'ขอบคุณสำหรับคะแนน!', rating: rating, row: targetRow };
   } catch (err) {
     return { ok: false, error: String(err) };
@@ -970,7 +977,141 @@ function _ratingStats() {
     break;
   }
 
-  return { ok: true, avg: Math.round(avg * 10) / 10, count: count };
+  return { ok: true, avg: Math.round(avg * 100) / 100, count: count };
+}
+
+/**
+ * 👁️ +1 จำนวนคนเปิดดูสินค้า
+ *
+ * 🛡 เขียนตาม "ชื่อคอลัมน์" เท่านั้น
+ * 🛡 ถ้ายังไม่มีคอลัมน์ `views` → เพิ่มท้ายสุดให้เอง (ไม่แตะข้อมูลเดิม)
+ * 🛡 ใช้ LockService กันเขียนชนกัน
+ *
+ * @param {string} productId รหัสสินค้า
+ * @return {Object} { ok, views }
+ */
+function _bumpViews(productId) {
+  const pid = String(productId || '').trim();
+  if (!pid) return { ok: false, error: 'ไม่รู้จักสินค้า' };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_PRODUCTS);
+    if (!sh) return { ok: false, error: 'ไม่พบแท็บ Products ในชีต' };
+
+    const lastRow = sh.getLastRow();
+    const lastCol = sh.getLastColumn();
+    if (lastRow < 2 || lastCol < 1) return { ok: false, error: 'แท็บ Products ยังไม่มีข้อมูล' };
+
+    const all = sh.getRange(1, 1, lastRow, lastCol).getValues();
+    const hIdx = _findHeaderRow(all);
+    const headers = all[hIdx].map(function (h) { return String(h || '').trim(); });
+    const cId = _colIndex(headers, 'product_id');
+    if (cId === -1) return { ok: false, error: 'ไม่พบคอลัมน์ product_id ในแท็บ Products' };
+
+    // ➕ ยังไม่มีคอลัมน์ views → เพิ่มท้ายสุด (ไม่กระทบคอลัมน์/สูตรเดิม)
+    let cViews = _colIndex(headers, 'views');
+    if (cViews === -1) {
+      cViews = headers.length;
+      sh.getRange(hIdx + 1, cViews + 1).setValue('views');
+    }
+
+    // 🔎 หาแถวของสินค้า
+    let row = -1;
+    for (let r = hIdx + 1; r < all.length; r++) {
+      if (String(all[r][cId] || '').trim() === pid) { row = r + 1; break; }
+    }
+    if (row === -1) return { ok: false, error: 'ไม่พบสินค้า: ' + pid };
+
+    const cur = _num(sh.getRange(row, cViews + 1).getValue());
+    const next = cur + 1;
+    sh.getRange(row, cViews + 1).setValue(next);
+    return { ok: true, views: next };
+  } finally {
+    try { lock.releaseLock(); } catch (e) { /* ปล่อย lock ไม่ได้ก็ช่าง */ }
+  }
+}
+
+/**
+ * ✉️ ส่งอีเมลแจ้งเจ้าของร้าน
+ *
+ * ใช้บัญชี Google ที่ผูกชีตอยู่แล้ว → ไม่ต้องตั้งอะไรเพิ่ม ไม่ต้องใส่รหัสผ่าน
+ * 📧 ตั้งอีเมลรับแจ้งเองได้: แท็บ Config → คีย์ `notify_email`
+ *
+ * ⛔ เรียกเฉพาะตอน "มีคนให้คะแนน" เท่านั้น
+ *    (ห้ามเรียกตอนคนเปิดดูสินค้า — เดี๋ยวอีเมลล้น)
+ *
+ * 🛑 ส่งไม่ได้ก็ห้ามให้ระบบพัง → เงียบไว้แล้วคืน false
+ *
+ * @param {string} subject หัวข้อ
+ * @param {string} body เนื้อหา
+ * @return {boolean} ส่งสำเร็จไหม
+ */
+/** 🪵 จด log แบบปลอดภัย (ถ้าไม่มี Logger ก็เงียบไว้) */
+function _log_(msg) {
+  try { Logger.log(msg); } catch (e) { /* ไม่มี Logger ก็ช่าง */ }
+}
+
+function _notifyOwner(subject, body) {
+  try {
+    let to = '';
+    try { to = String(_getConfig('notify_email') || '').trim(); } catch (e) { to = ''; }
+    if (!to) to = String(Session.getEffectiveUser().getEmail() || '').trim();
+    if (!to) return false;
+
+    MailApp.sendEmail(to, subject, body);
+    return true;
+  } catch (e) {
+    _log_('notifyOwner ล้มเหลว: ' + e);
+    return false;
+  }
+}
+
+/**
+ * ✉️ แจ้งเจ้าของร้านเมื่อมีคนให้คะแนน (เรียกจาก _setRating)
+ *
+ * @param {string} email อีเมลคนให้คะแนน
+ * @param {string} productId สินค้า (WEBSITE = ให้คะแนนเว็บ)
+ * @param {number} rating คะแนน
+ * @param {string} comment ความเห็น
+ * @param {boolean} isUpdate แก้ของเดิมหรือเพิ่มใหม่
+ */
+function _notifyRating(email, productId, rating, comment, isUpdate) {
+  // 🛑 ห้ามให้ "การแจ้งเตือน" ทำให้การบันทึกคะแนนพังเด็ดขาด
+  try {
+    const isWeb = String(productId) === WEBSITE_RATING_ID;
+    const stars = '⭐'.repeat(Math.max(1, Math.round(rating))) + ' (' + rating + '/5)';
+    const head = isWeb
+      ? '⭐ มีคนให้คะแนนเว็บไซต์ ' + stars
+      : '⭐ มีคนให้คะแนนสินค้า ' + productId + ' ' + stars;
+
+    const lines = [
+      head,
+      '',
+      'ผู้ให้คะแนน: ' + email,
+      'สินค้า      : ' + (isWeb ? 'เว็บไซต์ทั้งร้าน' : productId),
+      'คะแนน      : ' + rating + ' / 5',
+      'ความเห็น   : ' + (comment || '(ไม่ได้เขียน)'),
+      'ประเภท     : ' + (isUpdate ? 'แก้ไขคะแนนเดิม' : 'ให้คะแนนใหม่'),
+      '',
+      '📊 ดูรายละเอียดที่ชีต:',
+      _sheetUrl_()
+    ];
+
+    _notifyOwner(head, lines.join('\n'));
+  } catch (e) {
+    _log_('notifyRating ข้าม (ไม่กระทบการบันทึกคะแนน): ' + e);
+  }
+}
+
+/** 🔗 ลิงก์ชีต (เขียนแบบปลอดภัย — ถ้าหาไม่ได้ก็คืนข้อความเปล่า) */
+function _sheetUrl_() {
+  try {
+    return String(SpreadsheetApp.getActiveSpreadsheet().getUrl() || '');
+  } catch (e) {
+    return '';
+  }
 }
 
 /**
@@ -1008,7 +1149,7 @@ function _websiteRatingStat() {
 
   return {
     ok: true,
-    avg: count ? Math.round((sum / count) * 10) / 10 : 0,
+    avg: count ? Math.round((sum / count) * 100) / 100 : 0,
     count: count
   };
 }
@@ -1097,7 +1238,8 @@ const SHEET_FIELD_ALIASES = {
   product_name: ['productname'],
   admin_note: ['adminnote', 'note', 'adminnotes'],
   cover_url: ['coverurl', 'coverimage', 'imageurl', 'image'],
-  file_sample_url: ['filesampleurl', 'sampleurl', 'samplefileurl', 'sample']
+  file_sample_url: ['filesampleurl', 'sampleurl', 'samplefileurl', 'sample'],
+  views: ['view', 'viewcount', 'viewscount', 'hits', 'visitorcount', 'visitor']
 };
 
 /**

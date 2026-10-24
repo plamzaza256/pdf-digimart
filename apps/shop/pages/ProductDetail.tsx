@@ -6,6 +6,7 @@ import OrderLineButton from '@shared/components/OrderLineButton';
 import RatingModal from '../components/RatingModal';
 import { parseFileSize } from '@shared/lib/fileSize';
 import { coverUrlFromFiles, coverUrlFromSheet, sampleEmbedUrl } from '@shared/lib/media';
+import { apiProductView } from '@shared/lib/api';
 
 /**
  * 👁️ ตัวอย่างไฟล์ PDF
@@ -51,6 +52,19 @@ function SamplePreview({ product }: { product: { id: string; sampleUrl?: string 
 
 export default function ProductDetail() {
   const { id } = useParams();
+
+  // 👁️ นับ "คนเปิดดู" ลงชีต
+  //    กันตัวเลขบวม: 1 คน = 1 ครั้ง ต่อ 30 นาที ต่อสินค้า
+  useEffect(() => {
+    if (!id) return;
+    const KEY = 'pdfshop_viewed_v1';
+    let seen: Record<string, number> = {};
+    try { seen = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch { seen = {}; }
+    if (Date.now() - Number(seen[id] || 0) < 30 * 60 * 1000) return; // เพิ่งนับไปแล้ว
+    seen[id] = Date.now();
+    try { localStorage.setItem(KEY, JSON.stringify(seen)); } catch { /* เต็มก็ช่าง */ }
+    apiProductView(id).catch(() => undefined);
+  }, [id]);
   const { products, isFavorite, toggleFavorite } = useShop();
   const p = products.find((x) => x.id === id);
   // ⭐ ป๊อปอัพให้คะแนน
@@ -106,7 +120,8 @@ export default function ProductDetail() {
           <p className="muted">{p.description}</p>
           <div className="card-meta">
             {/* ⛔ โชว์เฉพาะตัวเลขที่มีจริง — ไม่โชว์ยอดขายปลอม */}
-            {p.rating > 0 && <><span>⭐ {p.rating.toFixed(1)}</span><span>•</span></>}
+            {p.rating > 0 && <><span>⭐ {p.rating.toFixed(2)}</span><span>•</span></>}
+            {p.views > 0 && <><span>👁 เปิดดู {p.views.toLocaleString('th-TH')} ครั้ง</span><span>•</span></>}
             {p.sales > 0 && <><span>ขายแล้ว {p.sales.toLocaleString('th-TH')}</span><span>•</span></>}
             <span>{pagesLabel(p.pages)}</span>
           </div>
