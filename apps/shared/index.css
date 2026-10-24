@@ -104,7 +104,7 @@ a { color: inherit; }
    เดิม max-width: 760px ทำให้บล็อกนี้ถูกจัดกึ่งกลางจอ ไม่ตรงกับหัวข้อสินค้า */
 .hero { padding: 36px 16px 8px; }
 .hero-text { max-width: 760px; }
-.hero h1 { font-size: clamp(1.7rem, 4vw, 2.7rem); line-height: 1.25; margin: 12px 0; }
+.hero h1 { font-size: clamp(2rem, 5.2vw, 3.4rem); line-height: 1.2; margin: 12px 0; white-space: nowrap; }
 .hero-cta { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
 .hero-points { padding: 0; list-style: none; display: grid; gap: 6px; color: #334155; }
 .d1 { top: 10px; left: 10px; transform: rotate(-6deg); }
@@ -200,6 +200,8 @@ a { color: inherit; }
   .brand-logo { width: 48px; height: 48px; border-radius: 12px; }
   .brand-text { font-size: 1.35rem; }
   .brand-text small { font-size: 13px; }
+  /* มือถือ: หัวเว็บตัวเดียวบรรทัดเดียว → ปล่อยให้ตัดบรรทัดเอง */
+  .hero h1 { white-space: normal; font-size: clamp(1.6rem, 7vw, 2.2rem); }
   .cover-title { font-size: 18px; }
   .cover-meta { font-size: 14px; }
   .card-title { font-size: 16px; }
