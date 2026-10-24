@@ -15,7 +15,11 @@ export default function Home() {
     <div>
       <section className="hero container">
         <div className="hero-text">
-          <h1>Mock Test By ให้แม่มึงทำ</h1>
+          <h1>
+            Mock Test By
+            <br />
+            ให้แม่มึงทำ
+          </h1>
           <p>
             เลือกดูตัวอย่างสินค้า แล้วกดสั่งซื้อผ่าน LINE OA ของร้านได้เลย
           </p>
