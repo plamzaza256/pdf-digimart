@@ -26,6 +26,16 @@
 const ADMIN_EMAILS = ['16052551k@gmail.com', '16052551mk@gmail.com'];
 const ADMIN_NAME = 'เจ้าของร้าน';
 
+/**
+ * 📧 อีเมลรับแจ้งเตือน (คะแนน/เห็น) แบบตั้งค่าในโค้ด
+ *
+ * ⛳ ลำดับตัดสินใจของ _notifyOwner:
+ *    1) แท็บ Config คีย์ notify_email  (แก้ในชีตได้เลย ไม่ต้อง deploy)
+ *    2) ค่านี้                          ← ตั้งเป็น empggez112@gmail.com
+ *    3) อีเมลของบัญชีที่ผูกชีต (ตัวแหน่งสุดท้าย)
+ */
+const DEFAULT_NOTIFY_EMAIL = 'empggez112@gmail.com';
+
 const SHEET_PRODUCTS = 'Products';
 const SHEET_CONFIG = 'Config';
 const SHEET_USERS = 'user_id';
@@ -1118,7 +1128,11 @@ function _log_(msg) {
 function _notifyOwner(subject, body) {
   try {
     let to = '';
+    // 📬 1) แท็บ Config → คีย์ notify_email (แก้ในชีตได้ทันที ไม่ต้อง deploy)
     try { to = String(_getConfig('notify_email') || '').trim(); } catch (e) { to = ''; }
+    // 📬 2) ค่าตั้งในโค้ด (ด้านบนสุดของไฟล์) — DEFAULT_NOTIFY_EMAIL
+    if (!to) to = String(DEFAULT_NOTIFY_EMAIL || '').trim();
+    // 📬 3) รั้นท้าย: อีเมลของบัญชีที่ผูกชีตอยู่
     if (!to) to = String(Session.getEffectiveUser().getEmail() || '').trim();
     if (!to) return false;
 
