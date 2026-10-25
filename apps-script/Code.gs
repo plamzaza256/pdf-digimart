@@ -23,8 +23,18 @@
 //    16052551mk@gmail.com = บัญชีเก่าในชีต (ไม่ได้ล็อกอินผ่าน Google)
 //    16052551k@gmail.com  = บัญชีจริงที่เข้าเว็บด้วย Google
 // ใส่ทั้งสองไว้กันพลาด
-const ADMIN_EMAILS = ['16052551k@gmail.com', '16052551mk@gmail.com'];
+const ADMIN_EMAILS = ['16052551k@gmail.com', '16052551mk@gmail.com', 'Empggez112@gmail.com'];
 const ADMIN_NAME = 'เจ้าของร้าน';
+
+/**
+ * 📧 ผู้รับอีเมลแจ้งเตือน (การให้คะแนน) — รับที่นี่ที่เดียว
+ *    1) ถ้าแท็บ Config มีคีย์ notify_email → ใช้ค่าในชีต (ยืดหยุ่นแก้ทันที)
+ *    2) ไม่มี → ใช้ค่าล่างนี้เสมอ (Empggez112@gmail.com เท่านั้น)
+ *
+ * 🛑 การส่งเมลล้มเหลวไม่มีทางทำให้การบันทึกคะแนน/ระบบล่ม
+ *    (ดู _notifyRating — ทุกจุดที่ยิงพันด้วย try/catch)
+ */
+const NOTIFY_EMAIL = 'Empggez112@gmail.com';
 
 const SHEET_PRODUCTS = 'Products';
 const SHEET_CONFIG = 'Config';
@@ -1120,8 +1130,8 @@ function _notifyOwner(subject, body) {
     let to = '';
     // 📬 1) แท็บ Config → คีย์ notify_email (แก้ในชีตได้ทันที ไม่ต้อง deploy)
     try { to = String(_getConfig('notify_email') || '').trim(); } catch (e) { to = ''; }
-    // 📬 2) ไม่มีคีย์ในชีต → ใช้อีเมลของบัญชี Google ที่ผูกชีตอยู่
-    if (!to) to = String(Session.getEffectiveUser().getEmail() || '').trim();
+    // 📬 2) ไม่มีในชีต → ส่งเฉพาะ NOTIFY_EMAIL (Empggez112@gmail.com) ที่เดียว
+    if (!to) to = String(NOTIFY_EMAIL || '').trim();
     if (!to) return false;
 
     MailApp.sendEmail(to, subject, body);
