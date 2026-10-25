@@ -95,11 +95,6 @@ export function apiFirebaseLogin(idToken: string, name?: string) {
   return call('user.firebase', { id_token: idToken, name: name || '' });
 }
 
-/** ดึงข้อมูลเดิมของสมาชิก (ใช้ตอนกลับมาเข้าเว็บอีกครั้ง) */
-export function apiCheckUser(email: string) {
-  return call('user.check', { email });
-}
-
 /**
  * ยืนยันตัวตนด้วยอีเมล + รหัสผู้ใช้ โดยไม่ต้องกรอกรหัสผ่าน
  * นี่คือตัวที่ยืนยันว่า "คนนี้คือคนที่ล็อกอินไว้จริง" ก่อนดึงคลังไฟล์
@@ -133,18 +128,25 @@ export interface PublicConfig {
 }
 
 let publicConfigCache: PublicConfig | null = null;
+/** 🔗 URL ที่ใช้ตอนดึง config — เปลี่ยน URL ต้องดึงใหม่เสมอ (กันค่าเก่าค้าง) */
+let publicConfigCacheUrl = '';
 
 /**
- * ดึงค่าตั้งร้านจากเซิร์ฟเวอร์ (โหลดครั้งเดียว เก็บไว้ในหน่วยความจำ)
- * ทำให้ไม่ต้องใส่ค่า Firebase ซ้ำในทุกเว็บที่ deploy
+ * ดึงค่าตั้งร้านจากเซิร์ฟเวอร์ (โหลดครั้งเดียวเท่าที่ "URL เดิม")
+ *
+ * 🛡 ทำให้ไม่ต้องใส่ค่า Firebase ซ้ำในทุกเว็บที่ deploy
+ * 🛡 เปลี่ยนเซิร์ฟเวอร์ (localStorage pdfshop_server_url_v1) → ดึงใหม่ทันที
+ *     เดิมแค้ชข้ามชีวิตตาราง → เปลี่ยน URL แล้วได้ค่าของเซิร์ฟเวอร์เก่าอยู่
  */
 export async function apiPublicConfig(): Promise<PublicConfig> {
-  if (publicConfigCache) return publicConfigCache;
-  const data = await getJson<PublicConfig>(`${apiUrl()}?action=public.config`);
+  const url = getApiUrl();
+  if (publicConfigCache && publicConfigCacheUrl === url) return publicConfigCache;
+  const data = await getJson<PublicConfig>(`${url}?action=public.config`);
   if (!data.ok || !data.firebase || !data.firebase.apiKey) {
     throw new Error('เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า Firebase');
   }
   publicConfigCache = data;
+  publicConfigCacheUrl = url;
   return data;
 }
 

@@ -43,9 +43,13 @@ async function loadConfig(): Promise<FirebaseOptions> {
           .catch((e) => {
             // ล้าง cache เพื่อให้ลองใหม่ได้
             configPromise = null;
-            throw e instanceof Error
-              ? e.message
-              : 'โหลดค่าตั้ง Firebase ไม่สำเร็จ';
+            // 🛡 throw แบบ Error object เสมอ — เดิม throw เป็นสตริง
+            //     ทำให้ผู้ใช้ไม่เห็นสาเหตุจริง (เจอแต่ "เข้าสู่ระบบไม่สำเร็จ")
+            throw new Error(
+              e instanceof Error
+                ? e.message
+                : 'โหลดค่าตั้ง Firebase ไม่สำเร็จ',
+            );
           });
   }
   return configPromise;
@@ -95,8 +99,12 @@ function thaiError(code: string): string {
       return 'ลองบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่';
     case 'auth/network-request-failed':
       return 'ต่อเน็ตไม่ได้ ลองเช็คอินเทอร์เน็ต';
+    case 'auth/cancelled-popup-request':
+      return 'เปิดหน้าต่างซ้อนกันเกิน ลองใหม่อีกครั้ง';
+    case 'auth/unauthorized-domain':
+      return 'โดเมนเว็บนี้ยังไม่ได้เปิดให้ล็อกอินด้วย Google ฝั่ง Firebase';
     case 'auth/operation-not-allowed':
-      return 'ยังไม่ได้เปิดวิธีนี้ใน Firebase (ต้องเปิด Email/Password หรือ Google)';
+      return 'ยังไม่ได้เปิดวิธีนี้ใน Firebase (ต้องเปิด Google)';
     default:
       return 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่';
   }
@@ -130,6 +138,9 @@ export async function signInWithGoogle(): Promise<FirebaseAccount> {
       name: cred.user.displayName || '',
     };
   } catch (e) {
+    // 🧨 ถ้า Firebase ไม่ให้ล็อกอินด้วยเหตุผลที่เราไม่รู้จัก
+    //     บอกต่อฝั่งคอนโซลเสมอ ไม่งั้นหาสาเหตุไม่ได้
+    console.error('firebase/Google sign-in error:', e);
     const msg = thaiError(errorCode(e));
     if (msg !== 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่') throw new Error(msg);
     throw new Error('เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาลองใหม่');

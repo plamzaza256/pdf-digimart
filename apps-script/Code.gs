@@ -108,24 +108,45 @@ function _ensureSheet(name, headers) {
 
 /**
  * เติมคอลัมน์ที่ยังไม่มีในแท็บเดิม (ใช้ตอนเพิ่มฟีเจอร์ใหม่ ไม่ต้องลบข้อมูลเก่า)
+ *
+ * 🛡 หาแถวหัวตารางจริงก่อนเสมอ — แท็บของเจ้าของร้านมีแถวชื่อรายงานอยู่แถว 1
+ *    เดิมเขียนหัวตารางลงแถว 1 ตายตัว → ทำให้คอลัมน์ `token` หาไปไม่เจอ
+ *    → รหัสผู้ใช้ไม่ถูกบันทึกลงชีต → ล็อกอินถูกขอใหม่ทุกครั้งที่เปิดหน้าใหม่
+ *
+ * @param {string} sheetName ชื่อแท็บ
+ * @param {Array<string>} newHeaders หัวตารางที่ยังไม่มี
+ * @return {number} แถวหัวตาราง (ฐาน 1) — ใช้ทำต่อได้
  */
 function _ensureColumns(sheetName, newHeaders) {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
-  if (!sh) return;
-  const current = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0]
-    .map(function (h) { return String(h).trim(); });
+  if (!sh || !newHeaders.length) return 0;
 
+  const vals = sh.getDataRange().getValues();
+  if (!vals.length) return 0;
+
+  // 🔎 แถวหัวตารางอยู่แถวไหน (แถว 1 = ชื่อรายงาน แถว 2 = หัวตาราง อย่างแท็บ Rating)
+  const hIdx = _findHeaderRow(vals);
+  const headerRow = hIdx + 1;
+  const current = vals[hIdx].map(function (h) { return String(h).trim(); });
+
+  // 🪪 เช็คแบบไม่สนตัวพิมพ์/ขีดล่าง (เหมือนที่ _colIndex ใช้)
+  const have = {};
+  for (let i = 0; i < current.length; i++) have[_normKey(current[i])] = true;
+
+  // ✍️ เขียนต่อท้ายคอลัมน์สุดท้ายเสมอ (ไม่แตะคอลัมน์/สูตรเดิม)
   let addCol = current.length;
+  const addedStart = addCol + 1;
   newHeaders.forEach(function (h) {
-    if (current.indexOf(String(h).trim()) === -1) {
+    if (!have[_normKey(h)]) {
       addCol += 1;
-      sh.getRange(1, addCol).setValue(h);
+      sh.getRange(headerRow, addCol).setValue(h);
     }
   });
   if (addCol > current.length) {
-    sh.getRange(1, addCol - newHeaders.length + 1, 1, newHeaders.length)
+    sh.getRange(headerRow, addedStart, 1, addCol - current.length)
       .setFontWeight('bold').setBackground('#e2e8f0');
   }
+  return headerRow;
 }
 
 /**
@@ -222,7 +243,6 @@ function doPost(e) {
     if (action === 'user.firebase') return _json(_firebaseLogin(body));
     if (action === 'user.session') return _json(_session(body));
 
-    if (action === 'user.check') return _json(_checkUser(body.email));
 
 
     // --- ⭐ ให้คะแนนสินค้า (ต้องล็อกอิน — กันสแปมแบบไม่ระบุตัวตน) ---
@@ -268,7 +288,13 @@ function _nextUserId() {
   const users = _readSheet(SHEET_USERS);
   let max = 0;
   for (let i = 0; i < users.length; i++) {
-    const n = Number(String(users[i].User_id || '').replace(/\D/g, ''));
+    // 🪪 รับเฉพาะรูปแบบ UID_#### จริง ๆ
+    //    กิจกรรมก่อนหน้าพิมพ์ที่ระบุ "ห้ามใช้สูตรนี้" — แถวชื่อรายงาน
+    // เดิมแค่เหลือเลขจากทุกข้อความ ถ้าเจอแถวมีเลขหลุดเป็นพัน
+    //    เราเลยคืน "เต็มจำนวนสมาชิกแล้ว" ทำให้คนล็อกอินไม่ได้เลย
+    const m = /^UID_(\d{1,4})$/.exec(String(users[i].User_id || '').trim());
+    if (!m) continue;
+    const n = Number(m[1]);
     if (n > max) max = n;
   }
   const next = max + 1;
@@ -298,12 +324,15 @@ function _today() {
  *    การตรวจสิทธิ์จริงเกิดที่ _requireAdmin ทุกครั้งที่เขียนข้อมูล
  */
 function _publicUser(row) {
+  // 🪪 วิธีเข้าสู่ระบบ — 'firebase' = เข้าผ่าน Google ด้วย Firebase
+  //     (เดิมแมพเป็น 'password' ทำให้ข้อมูลที่คืนให้หน้าเว็บไม่ตรงจริง)
+  const lm = String(row.login_method || '').toLowerCase();
   return {
     user_id: row.User_id,
     email: row.email,
     name: row.name,
     created_at: _fmtDate(row['Creation date']),
-    login_method: String(row.login_method || '') === 'google' ? 'google' : 'password',
+    login_method: (lm === 'google' || lm === 'firebase') ? 'google' : 'password',
     is_admin: _isAdminEmail(row.email)
   };
 }
@@ -314,10 +343,14 @@ function _publicUser(row) {
  */
 function _findUserRow(email) {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_USERS);
+  if (!sh) return null;
   const headers = _header(SHEET_USERS);
   const data = sh.getDataRange().getValues();
   const hIdx = _findHeaderRow(data);
   const cEmail = _colIndex(headers, 'email');
+  // 🛡 ถ้าไม่มีคอลัมน์ email → หาไม่เจอแน่นอน คืน null ไปเลย
+  //    (เดิม data[i][-1] ได้ undefined ทำให้ทุกอีเมลเทียบแล้ว "ไม่ตรง" เงียบ ๆ)
+  if (cEmail === -1) return null;
   const clean = String(email || '').trim().toLowerCase();
 
   for (let i = hIdx + 1; i < data.length; i++) {
@@ -381,17 +414,6 @@ function _session(body) {
   return { ok: true, user: _publicUser(found.row) };
 }
 
-/**
- * เช็คว่าอีเมลนี้มีบัญชีไหม
- * ⚠️ ห้ามคืนรหัสผู้ใช้ (token) จากฟังก์ชันนี้เด็ดขาด
- *    ไม่งั้นคนที่รู้อีเมลเพียงอย่างเดียวจะขโมยสิทธิ์ได้
- */
-function _checkUser(rawEmail) {
-  const email = String(rawEmail || '').trim().toLowerCase();
-  const found = _findUserRow(email);
-  if (!found) return { ok: true, exists: false, user: null };
-  return { ok: true, exists: true, user: _publicUser(found.row) };
-}
 
 // ============================ Firebase (ตรวจตัวตน) ============================
 
@@ -619,27 +641,67 @@ function _firebaseLogin(body) {
     const userId = _nextUserId();
     if (!userId) return { ok: false, error: 'เต็มจำนวนสมาชิกแล้ว' };
 
-    const headers = _header(SHEET_USERS);
-    const cols = headers.length;
-    const row = [];
-    for (let i = 0; i < cols; i++) row.push('');
+    const shUsers = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_USERS);
+    if (!shUsers) return { ok: false, error: 'ไม่พบแท็บ user_id ในชีต' };
 
-    const put = function (name, value) {
-      const c = _colIndex(headers, name);
-      if (c !== -1) row[c] = value;
+    const data = shUsers.getDataRange().getValues();
+    if (data.length < 1) return { ok: false, error: 'แท็บ user_id ไม่มีข้อมูล' };
+    const hIdx = _findHeaderRow(data);
+    const headers = data[hIdx].map(function (h) { return String(h || '').trim(); });
+    if (_colIndex(headers, 'email') === -1) {
+      return { ok: false, error: 'หัวตาราง user_id จะต้องมีคอลัมน์ email อย่างน้อยหนึ่งช่อง' };
+    }
+
+    // 🧾 ค่าจะถูกเขียนคอลัมน์ที่ "รู้ชื่อ" เท่านั้น — ไม่เขียนทับทั้งแถว
+    //    🛡 ไม่เก็บรหัสผ่านในชีต — Firebase เป็นผู้เก็บและเข้ารหัสให้
+    const writes = {
+      'User_id': userId,
+      'email': email,
+      'password': '',
+      'name': String(body.name || email.split('@')[0] || 'ลูกค้า'),
+      'Creation date': today,
+      'last_login': today,
+      'token': _newToken(),
+      'login_method': 'firebase'
     };
-    put('User_id', userId);
-    put('email', email);
-    // 🛡 ไม่เก็บรหัสผ่านในชีต — Firebase เป็นผู้เก็บและเข้ารหัสให้
-    put('password', '');
-    put('name', String(body.name || email.split('@')[0] || 'ลูกค้า'));
-    put('Creation date', today);
-    put('last_login', today);
-    put('token', _newToken());
-    put('login_method', 'firebase');
 
-    SpreadsheetApp.getActiveSpreadsheet()
-      .getSheetByName(SHEET_USERS).appendRow(row);
+    // ➕ เพิ่มแถวใหม่
+    // 🛡 เขียนต่อท้าย "แถวข้อมูลจริง" เสมอ — ไม่ใช้ appendRow
+    //    เหมือนกับที่ _setRating ทำ กันหลุม "แถวเปล่าเป็นร้อย" ที่พาไปตกท้ายชีต
+    //    (เพราะแท็บมักมีเส้นขอบ/จัดรูปแบบค้างอยู่เป็นริเวอร์)
+    let lastData = hIdx;
+    for (let r = hIdx; r < data.length; r++) {
+      let has = false;
+      for (let c = 0; c < data[r].length; c++) {
+        if (data[r][c] !== '' && data[r][c] !== null && data[r][c] !== undefined) {
+          has = true; break;
+        }
+      }
+      if (has) lastData = r;
+    }
+    let targetRow = lastData + 1;
+
+    // ถ้าแถวนั้นยังมีข้อมูลค้าง → เลื่อนลงจนเจอแถวว่างจริง
+    while (targetRow <= data.length) {
+      let occupied = false;
+      for (let c = 0; c < data[targetRow - 1].length; c++) {
+        const v = data[targetRow - 1][c];
+        if (v !== '' && v !== null && v !== undefined) { occupied = true; break; }
+      }
+      if (!occupied) break;
+      targetRow++;
+    }
+
+    // 🖊 เขียนเฉพาะช่องที่รู้ชื่อคอลัมน์ (เว้นช่องที่ว่างไว้)
+    for (const name in writes) {
+      const c = _colIndex(headers, name);
+      if (c !== -1) {
+        const v = writes[name];
+        if (v !== '' && v !== undefined && v !== null) {
+          shUsers.getRange(targetRow, c + 1).setValue(v);
+        }
+      }
+    }
 
     const created = _findUserRow(email);
     if (created) token = _ensureToken(created);

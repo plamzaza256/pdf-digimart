@@ -4,7 +4,7 @@
  * เลียนแบบโครงชีตจริงของเจ้าของร้าน:
  *   แท็บ Rating : แถว1 = "Rating Data"  แถว2 = หัวตาราง  แถว3+ = ข้อมูล
  *                 + บล็อกสรุปของเจ้าของร้านอยู่คอลัมน์ J..N แถว 2-6
- *   แท็บ user_id: แถว1 = หัวตาราง  แถว2+ = ผู้ใช้
+ *   แท็บ user_id: แถว1 = ชื่อรายงาน  แถว2 = หัวตาราง  แถว3+ = ผู้ใช้
  */
 const fs = require('fs');
 const vm = require('vm');
@@ -73,6 +73,8 @@ class FakeRange {
     this.sheet.data[rr][cc] = v;
   }
   getDataValidation() { return null; }
+  setFontWeight() { return this; }
+  setBackground() { return this; }
   getLastRow() { return this.sheet.data.length; }
   getLastColumn() {
     let m = 0;
@@ -132,11 +134,14 @@ function makeRatingSheet() {
 }
 
 function makeUserSheet() {
+  // 📋 ตรงกับแท็บ user_id ของเจ้าของร้านจริง:
+  //    แถว 1 = ชื่อรายงาน (title)   แถว 2 = หัวตาราง   แถว 3+ = สมาชิก
   const data = [
+    ['รายชื่อสมาชิก'],
     ['User_id', 'email', 'password', 'name', 'Creation date', 'last_login', 'token', 'login_method'],
     ['UID_0007', 'admin2@gmail.com', '', 'แอดมิน2', '2026-10-01', '2026-10-22', 'tok-abcdefghijklmnopqrstuvwxyz123456', 'google'],
   ];
-  return new FakeSheet('user_id', data, [[], []]);
+  return new FakeSheet('user_id', data, [[], [], []]);
 }
 
 const sheets = {
@@ -307,6 +312,32 @@ console.log('\n9) ให้คะแนนเว็บไซต์');
   check('ค่าใหม่ = 5', Number(R.data[4][5]) === 5, R.data[4]);
   check('ยังไม่มีการเขียนทับบล็อกสรุป', R.data[2][8] === 'AVG' && R.data[3][8] === 'COUNT');
 }
+console.log('\n9) ระบบสมาชิก — หัวตารางอยู่แถว 2 (แถว 1 เป็นชื่อรายงาน)');
+{
+  const U = sheets.user_id;
+  // 📌 ต้องหาคอลัมน์ token/email เจอแม้แถว 1 เป็นชื่อรายงาน
+  const row = sandbox._findUserRow('admin2@gmail.com');
+  check('หาข้อมูลสมาชิกเจอ', !!row);
+  check('User_id ถูกอ่านได้ = UID_0007', row && row.row.User_id === 'UID_0007');
+  check('token ถูกอ่านได้', row && row.row.token === 'tok-abcdefghijklmnopqrstuvwxyz123456');
+
+  // 🔧 _ensureColumns ต้องเขียนหัวตารางลง "แถวหัวตารางจริง" ไม่ใช่แถว 1
+  const colsBefore = U.getLastColumn();
+  const headerRow = sandbox._ensureColumns('user_id', ['token', 'login_method']);
+  check('หาแถวหัวตารางได้ = แถว 2', headerRow === 2, headerRow);
+  check('token สร้างแล้ว จึงไม่ซ้ำ → ไม่เพิ่มคอลัมน์', U.getLastColumn() === colsBefore);
+  check('แถว 1 (ชื่อรายงาน) ไม่ถูกแตะ', String(U.data[0][1] || '') === '');
+  check('แถว 2 ยังเป็นหัวตารางเดิม', U.data[1][0] === 'User_id' && String(U.data[1][6]) === 'token');
+
+  // ➕ ยังไม่มีคอลัมน์นี้ → เพิ่มท้ายได้แบบพอดี
+  const g = sandbox._ensureColumns('user_id', ['note']);
+  check('เพิ่มคอลัมน์ note ท้ายสุด (คอลัมน์ 9)', g === 2 && String(U.data[1][8]) === 'note', U.data[1]);
+  check('แถว 1 ยังไม่ถูกเขียน', String(U.data[0][8] || '') === '');
+
+  // 🔢 นับ UID ต้องรับเฉพาะรูปแบบ UID_####
+  check('UID ต่อไป = UID_0008', sandbox._nextUserId() === 'UID_0008');
+}
+
 console.log('\n─────────────────────────────');
 console.log('ผ่าน ' + pass + ' / ล้มเหลว ' + fail);
 process.exit(fail > 0 ? 1 : 0);
