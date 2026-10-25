@@ -1,5 +1,14 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import {
+  browserPopupRedirectResolver,
+  getAuth,
+  getRedirectResult,
+  GoogleAuthProvider,
+  indexedDBLocalPersistence,
+  setPersistence,
+  signInWithPopup,
+  signInWithRedirect,
+} from 'firebase/auth';
 import { apiPublicConfig } from './api';
 
 /**
@@ -72,8 +81,25 @@ async function getFirebaseAuth() {
     // เรียกได้หลายครั้งโดยไม่ error (Fast Refresh / หลาย entry)
     const app = getApps().length ? getApp() : initializeApp(config);
     authInstance = getAuth(app);
+    // 📦 เปลี่ยนที่เก็บสถานะเป็น IndexedDB เสมอ
+    //    เดิมใช้ sessionStorage (ที่ในบางเบราว์เซอร์มือถือ/in-app browser ถูกบล็อก)
+    //    ทำให้ป๊อปอัพล็อกอินฟ้องว่า "ไม่สามารถเข้าถึง sessionStorage"
+    try {
+      await setPersistence(authInstance, indexedDBLocalPersistence);
+    } catch {
+      /* บางเบราว์เซอร์บล็อก IndexedDB ด้วย — ไม่เป็นไร Firebase หาที่เก็บให้เอง */
+    }
   }
   return authInstance;
+}
+
+/** เดาว่าเป็นมือถือไหม — มือถือมักบล็อก popup + sessionStorage ของ Firebase */
+function isMobileBrowser(): boolean {
+  try {
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  } catch {
+    return false;
+  }
 }
 
 /** แปลงรหัสผิดของ Firebase เป็นข้อความไทยที่เข้าใจง่าย */
@@ -124,11 +150,44 @@ export interface FirebaseAccount {
   name: string;
 }
 
+/**
+ * ✅ ตรวจว่าเพิ่งกลับมาจาก redirect ล็อกอินไหม (ให้ทำก่อนเรนเดอร์อะไรหนัก ๆ)
+ *    ถ้าเพิ่งกลับมา → คืนข้อมูลบัญชีทันที (ไม่ต้องกดปุ่มอีกรอบ)
+ */
+export async function consumeGoogleRedirect(): Promise<FirebaseAccount | null> {
+  try {
+    const auth = await getFirebaseAuth();
+    const cred = await getRedirectResult(auth);
+    if (!cred || !cred.user) return null;
+    const email = cred.user.email || '';
+    if (!email) return null;
+    return {
+      idToken: await cred.user.getIdToken(),
+      email,
+      name: cred.user.displayName || '',
+    };
+  } catch (e) {
+    console.error('firebase/redirect result error:', e);
+    return null;
+  }
+}
+
 export async function signInWithGoogle(): Promise<FirebaseAccount> {
   const auth = await getFirebaseAuth();
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
+
   try {
+    // 📱 มือถือ → ใช้ redirect ตรง ๆ (popup มักโดนบล็อก sessionStorage)
+    //    หน้าจะเด้งไปหน้า Google แล้วกลับมาที่เดิม
+    //    ผลลัพธ์จะถูกดึงโดย consumeGoogleRedirect() ตอนหน้าโหลดใหม่
+    if (isMobileBrowser()) {
+      await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
+      // redirect จะพาออกจากหน้านี้ — return Promise ที่ไม่จบ กันโค้ดต่อไปวิ่ง
+      return new Promise<FirebaseAccount>(() => {});
+    }
+
+    // 💻 คอม → popup ตามเดิม (ไวกว่า)
     const cred = await signInWithPopup(auth, provider);
     const email = cred.user.email || '';
     if (!email) throw new Error('บัญชี Google นี้ไม่มีอีเมล ใช้บัญชีอื่นแทน');
@@ -141,7 +200,25 @@ export async function signInWithGoogle(): Promise<FirebaseAccount> {
     // 🧨 ถ้า Firebase ไม่ให้ล็อกอินด้วยเหตุผลที่เราไม่รู้จัก
     //     บอกต่อฝั่งคอนโซลเสมอ ไม่งั้นหาสาเหตุไม่ได้
     console.error('firebase/Google sign-in error:', e);
-    const msg = thaiError(errorCode(e));
+
+    // 🛟 คอมบางเครื่องก็บล็อก popup → ลอง redirect รอบสอง
+    const code = errorCode(e);
+    if (
+      code === 'auth/popup-blocked' ||
+      code === 'auth/popup-closed-by-user' ||
+      code === 'auth/cancelled-popup-request' ||
+      code === 'auth/operation-not-supported-in-this-environment'
+    ) {
+      try {
+        await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
+        return new Promise<FirebaseAccount>(() => {});
+      } catch (e2) {
+        console.error('firebase/redirect fallback error:', e2);
+        throw new Error(thaiError(errorCode(e2)));
+      }
+    }
+
+    const msg = thaiError(code);
     if (msg !== 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่') throw new Error(msg);
     throw new Error('เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาลองใหม่');
   }

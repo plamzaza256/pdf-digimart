@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react';
 import type { User } from '../types';
 import { apiFirebaseLogin, apiSession } from '../lib/api';
-import { isFirebaseConfigured, signInWithGoogle } from '../lib/firebase';
+import { consumeGoogleRedirect, isFirebaseConfigured, signInWithGoogle } from '../lib/firebase';
 
 // เก็บในเบราว์เซอร์ของผู้ใช้เพื่อคงสถานะ "เข้าสู่ระบบแล้ว" ข้ามหน้า
 const SESSION_EMAIL = 'pdfshop_session_v1';
@@ -67,6 +67,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // คืนสถานะล็อกอินเดิมเมื่อเปิดหน้าเว็บใหม่
   useEffect(() => {
+    // 📱 มือถือใช้ redirect: ถ้าเพิ่งกลับมาจากหน้า Google → รับผลทันที
+    //    (ต้องทำก่อนอย่างอื่น เพราะ Firebase ให้ผลรอบเดียว)
+    consumeGoogleRedirect()
+      .then(async (acc) => {
+        if (!acc || cancelledRedirect) return;
+        try {
+          const r = await apiFirebaseLogin(acc.idToken, acc.name);
+          if (r.ok && r.user && r.token) {
+            saveSession(r.user.email, r.token);
+            setToken(r.token);
+            setUser(toUser(r.user));
+          }
+        } catch {
+          /* ปล่อยผ่าน — ผู้ใช้กดปุ่มล็อกอินใหม่ได้ */
+        }
+      })
+      .catch(() => {});
+
     const saved = readSession();
     if (!saved) {
       // เก็บกวาดอีเมลค้างเมื่อรหัสผู้ใช้หาย
@@ -74,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     let cancelled = false;
+    let cancelledRedirect = false;
     setToken(saved.token);
     apiSession(saved.email, saved.token)
       .then((r) => {
@@ -89,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     return () => {
       cancelled = true;
+      cancelledRedirect = true;
     };
   }, []);
 
