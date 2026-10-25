@@ -153,12 +153,17 @@ export interface FirebaseAccount {
 /**
  * ✅ ตรวจว่าเพิ่งกลับมาจาก redirect ล็อกอินไหม (ให้ทำก่อนเรนเดอร์อะไรหนัก ๆ)
  *    ถ้าเพิ่งกลับมา → คืนข้อมูลบัญชีทันที (ไม่ต้องกดปุ่มอีกรอบ)
+ *
+ * 🎫 ถ้า redirect ล้มเหลว → จดข้อความไว้ที่ sessionStorage
+ *    แล้วหน้า Login จะดึงด้วย takeForgetLoginError() มาโชว์ได้
+ *    (แก้บั๊ก "กลับมาเงียบ ๆ ผู้ใช้ไม่รู้ว่าเกิดอะไร")
  */
 export async function consumeGoogleRedirect(): Promise<FirebaseAccount | null> {
   try {
     const auth = await getFirebaseAuth();
     const cred = await getRedirectResult(auth);
     if (!cred || !cred.user) return null;
+    _clearRedirectFailure();
     const email = cred.user.email || '';
     if (!email) return null;
     return {
@@ -168,6 +173,30 @@ export async function consumeGoogleRedirect(): Promise<FirebaseAccount | null> {
     };
   } catch (e) {
     console.error('firebase/redirect result error:', e);
+    _setRedirectFailure('กลับมาจากหน้า Google แล้วแต่ล็อกอินไม่สำเร็จ — ลองกดปุ่มอีกครั้ง');
+    return null;
+  }
+}
+
+/** 🎫 กล่องจดข้อความ "redirect ล้มเหลว" (ใช้ sessionStorage — ปิดแท็บแล้วหาย) */
+const REDIRECT_FAIL_KEY = 'pdfshop_login_err_v1';
+
+function _setRedirectFailure(msg: string): void {
+  try { sessionStorage.setItem(REDIRECT_FAIL_KEY, msg); } catch { /* บล็อกก็ช่าง */ }
+}
+
+function _clearRedirectFailure(): void {
+  try { sessionStorage.removeItem(REDIRECT_FAIL_KEY); } catch { /* ช่าง */ }
+}
+
+/** 🎫 ดึง+ล้างข้อความพังของ redirect (หน้า Login ใช้มาโชว์ให้ผู้ใช้) */
+export function takeForgetLoginError(): string | null {
+  try {
+    const msg = sessionStorage.getItem(REDIRECT_FAIL_KEY);
+    if (!msg) return null;
+    sessionStorage.removeItem(REDIRECT_FAIL_KEY);
+    return msg;
+  } catch {
     return null;
   }
 }

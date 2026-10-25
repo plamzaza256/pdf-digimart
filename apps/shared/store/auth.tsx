@@ -62,7 +62,6 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const ready = isFirebaseConfigured();
 
   // คืนสถานะล็อกอินเดิมเมื่อเปิดหน้าเว็บใหม่
@@ -111,6 +110,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelledRedirect = true;
     };
   }, []);
+
+  const [busy, setBusy] = useState(false);
+
+  // 🛡 กันปุ่มหมุนค้าง: ถ้า redirect ไป Google แล้วถูกเน็ต/ไฟร์วอลล์ขวาง
+  //    หน้าจะไม่ออก → busy ค้าง true ตลอด ให้ปลดอัตโนมัติหลัง 12 วินาที
+  //    เพื่อผู้ใช้กดปุ่มซ้ำได้ (กรณีเกิดจริง เช่นอาการ Failed to fetch)
+  useEffect(() => {
+    if (!busy) return;
+    const t = setTimeout(() => setBusy(false), 12000);
+    return () => clearTimeout(t);
+  }, [busy]);
 
   const loginWithGoogle = useCallback(async (): Promise<string | null> => {
     setBusy(true);

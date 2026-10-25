@@ -1,11 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@shared/store/auth';
+import { takeForgetLoginError } from '@shared/lib/firebase';
 
 export default function Login() {
   const { loginWithGoogle, busy } = useAuth();
   const nav = useNavigate();
   const [err, setErr] = useState<string | null>(null);
+
+  // 🎫 ถ้าเพิ่งกลับมาจาก redirect ล็อกอิน Google แล้วไม่สำเร็จ
+  //    (เรจัดว่าลองกดใหม่ — ไม่ให้ผู้ใช้หน้าว้างนิ่ง)
+  useEffect(() => {
+    const msg = takeForgetLoginError();
+    if (msg) setErr(msg);
+  }, []);
 
   const google = async () => {
     setErr(null);
