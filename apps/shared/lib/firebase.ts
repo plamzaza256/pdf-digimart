@@ -219,6 +219,17 @@ export async function signInWithGoogle(): Promise<FirebaseAccount> {
     }
 
     const msg = thaiError(code);
+    // 🌐 "Failed to fetch" = ต่อไปยัง Firebase/Google ไม่สำคั ๆ (เน็ตหลุด/ไฟเวอร์วอลบล็อก)
+    //    แสดงเป็นไทยให้ผู้ใช้เข้าใจว่าไม่ใช่บัญชีผิด
+    if (
+      msg === 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่' &&
+      e instanceof TypeError &&
+      /Failed to fetch|NetworkError|network/i.test(e instanceof Error ? e.message : '')
+    ) {
+      throw new Error(
+        'ต่อเน็ตยัง Google ไม่ได้ตอนนี้ ลองกดอีกครั้ง หรือลองเปลี่ยน Wi-Fi/ใช้เน็ตมือถือ',
+      );
+    }
     if (msg !== 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่') throw new Error(msg);
     throw new Error('เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาลองใหม่');
   }
