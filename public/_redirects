@@ -1,0 +1,6 @@
+# 🔐 Firebase Auth handler (self-hosted) — เสิร์ฟ URL ไม่มีนามสกุลให้เป็น HTML จริง
+#    Cloudflare Pages เดา content-type จากนามสกุลไฟล์ → ไฟล์ไม่มีนามสกุลอาจถูกเสิร์ฟผิดชนิด
+#    กฎ 200 = rewrite เงียบ (URL ไม่เปลี่ยน เนื้อหา = ไฟล์ .html) → เบราว์เซอร์เรนเดอร์ถูกต้อง
+/__/auth/handler  /__/auth/handler.html  200
+/__/auth/iframe   /__/auth/iframe.html   200
+/__/auth/callback /__/auth/callback.html 200
