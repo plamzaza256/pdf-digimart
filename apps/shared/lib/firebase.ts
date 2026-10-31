@@ -93,10 +93,19 @@ async function getFirebaseAuth() {
   return authInstance;
 }
 
-/** เดาว่าเป็นมือถือไหม — มือถือมักบล็อก popup + sessionStorage ของ Firebase */
-function isMobileBrowser(): boolean {
+/**
+ * 🍎 เป็น iPhone/iPad ไหม
+ *    iOS ทุกเบราว์เซอร์ (Safari/Chrome iOS) ใช้เอนจิ้น WebKit เดียวกัน
+ *    → บล็อก popup ของ Firebase + sessionStorage ของโดเมน firebaseapp.com
+ *    → ต้องใช้ redirect เท่านั้น
+ *    ส่วน Android Chrome = popup ใช้ได้ปกติ (เร็วกว่า ไม่ต้องเด้งข้ามหน้า)
+ */
+function isIOSBrowser(): boolean {
   try {
-    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    return (
+      /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (/Macintosh/i.test(navigator.userAgent) && 'ontouchend' in document)
+    );
   } catch {
     return false;
   }
@@ -161,8 +170,23 @@ export interface FirebaseAccount {
 export async function consumeGoogleRedirect(): Promise<FirebaseAccount | null> {
   try {
     const auth = await getFirebaseAuth();
-    const cred = await getRedirectResult(auth);
-    if (!cred || !cred.user) return null;
+    // ⚠️ ต้องใช้ resolver ตัวเดียวกับที่ตอนเริ่ม redirect (browserPopupRedirectResolver)
+    //    ไม่งั้น Firebase จะหา state ไม่เจอ → คืน null เงียบ ๆ เหมือน Safari พัง
+    const cred = await getRedirectResult(auth, browserPopupRedirectResolver);
+    if (!cred || !cred.user) {
+      // 🍎 เคส "เงียบ ๆ" ของ Safari/iOS: เด้งไป Google กลับมาแต่สถานะหาย
+      //     (Safari กันที่เก็บข้อมูลของโดเมน firebaseapp.com = ฝั่งบุคคลที่สาม)
+      //     → ต้องไม่เงียบ: บอกสาเหตุ + วิธีแก้ไปเลย
+      if (_hadRedirectIntent()) {
+        _setRedirectFailure(
+          'ล็อกอินกลับมาจาก Google แต่ข้อมูลสถานะหาย (Safari กันคุกกี้ข้ามเว็บ) — ' +
+          'วิธีแก้: การตั้งค่า Safari → ปิด "บล็อกคุกกี้ทั้งหมด" แล้วลองใหม่ หรือใช้ Chrome บน Android',
+        );
+      }
+      _clearRedirectIntent();
+      return null;
+    }
+    _clearRedirectIntent();
     _clearRedirectFailure();
     const email = cred.user.email || '';
     if (!email) return null;
@@ -173,13 +197,39 @@ export async function consumeGoogleRedirect(): Promise<FirebaseAccount | null> {
     };
   } catch (e) {
     console.error('firebase/redirect result error:', e);
-    _setRedirectFailure('กลับมาจากหน้า Google แล้วแต่ล็อกอินไม่สำเร็จ — ลองกดปุ่มอีกครั้ง');
+    const code = errorCode(e);
+    _setRedirectFailure(
+      'กลับมาจากหน้า Google แล้วแต่ล็อกอินไม่สำเร็จ' +
+      (code ? ' (' + code + ')' : '') +
+      ' — ลองกดปุ่มอีกครั้ง',
+    );
+    _clearRedirectIntent();
     return null;
   }
 }
 
 /** 🎫 กล่องจดข้อความ "redirect ล้มเหลว" (ใช้ sessionStorage — ปิดแท็บแล้วหาย) */
 const REDIRECT_FAIL_KEY = 'pdfshop_login_err_v1';
+/** 🕰 จำไว้ว่า "เพิ่งส่งตัวไป redirect ที่ Google" (localStorage) กันเคสเงียบของ Safari */
+const REDIRECT_INTENT_KEY = 'pdfshop_redirect_out_v1';
+
+function _markRedirectIntent(): void {
+  try { localStorage.setItem(REDIRECT_INTENT_KEY, String(Date.now())); } catch { /* ช่าง */ }
+}
+
+function _hadRedirectIntent(): boolean {
+  try {
+    const t = Number(localStorage.getItem(REDIRECT_INTENT_KEY) || '0');
+    // ถ้าเดินกลับมาภายใน 15 นาที = เพิ่งไป redirect มาจริง ๆ
+    return t > 0 && Date.now() - t < 15 * 60 * 1000;
+  } catch {
+    return false;
+  }
+}
+
+function _clearRedirectIntent(): void {
+  try { localStorage.removeItem(REDIRECT_INTENT_KEY); } catch { /* ช่าง */ }
+}
 
 function _setRedirectFailure(msg: string): void {
   try { sessionStorage.setItem(REDIRECT_FAIL_KEY, msg); } catch { /* บล็อกก็ช่าง */ }
@@ -207,16 +257,17 @@ export async function signInWithGoogle(): Promise<FirebaseAccount> {
   provider.setCustomParameters({ prompt: 'select_account' });
 
   try {
-    // 📱 มือถือ → ใช้ redirect ตรง ๆ (popup มักโดนบล็อก sessionStorage)
-    //    หน้าจะเด้งไปหน้า Google แล้วกลับมาที่เดิม
-    //    ผลลัพธ์จะถูกดึงโดย consumeGoogleRedirect() ตอนหน้าโหลดใหม่
-    if (isMobileBrowser()) {
+    // 🍎 iOS (Safari/Chrome iOS) → redirect อย่างเดียว (popup โดนบล็อกทั้งตัว)
+    //    จำไว้ด้วยว่าเดินไป redirect แล้ว เผื่อกลับมาเงียบ ๆ จะได้บอกสาเหตุได้
+    if (isIOSBrowser()) {
+      _markRedirectIntent();
       await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
       // redirect จะพาออกจากหน้านี้ — return Promise ที่ไม่จบ กันโค้ดต่อไปวิ่ง
       return new Promise<FirebaseAccount>(() => {});
     }
 
-    // 💻 คอม → popup ตามเดิม (ไวกว่า)
+    // 💻 คอม + Android → popup (เร็ว ไม่ต้องเด้งข้ามหน้า)
+    //    ถ้าเครื่องไหนบล็อก popup จะ fallback ไป redirect ให้เองด้านล่าง
     const cred = await signInWithPopup(auth, provider);
     const email = cred.user.email || '';
     if (!email) throw new Error('บัญชี Google นี้ไม่มีอีเมล ใช้บัญชีอื่นแทน');
@@ -239,6 +290,7 @@ export async function signInWithGoogle(): Promise<FirebaseAccount> {
       code === 'auth/operation-not-supported-in-this-environment'
     ) {
       try {
+        _markRedirectIntent();
         await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
         return new Promise<FirebaseAccount>(() => {});
       } catch (e2) {
