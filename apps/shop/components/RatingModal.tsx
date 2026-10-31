@@ -123,8 +123,6 @@ export default function RatingModal({
           <div className="notice warn-box">
             🔒 <b>ต้องเข้าสู่ระบบก่อน</b> จึงจะให้คะแนนได้
             <br />
-            (เพื่อกันการให้คะแนนปลอม / สแปม)
-            <br />
             <Link to="/login" className="btn btn-primary btn-sm" style={{ marginTop: 10 }}>
               เข้าสู่ระบบด้วย Google
             </Link>

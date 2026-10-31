@@ -13,8 +13,7 @@ export default function Navbar() {
         <Link to="/" className="brand">
           <img src="Line02.png" alt="โลโก้ร้านให้แม่มึงทำ" className="brand-logo" />
           <span className="brand-text">
-            Mock Test By
-            <small>ให้แม่มึงทำ</small>
+            Mock Test By ให้แม่มึงทำ
           </span>
         </Link>
         <div className="nav-links">
