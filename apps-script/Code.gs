@@ -1574,3 +1574,36 @@ function _json(obj) {
 function whoAmI() {
   return adminStatus();
 }
+
+/**
+ * 🕒 onEdit — Sales Tracker อัตโนมัติ time stamp
+ * เมื่อกรอก/ลบค่าในคอลัมน์ C (แถว 2+) ในแท็บ "Sales Tracker"
+ * ให้เขียนเวลาในคอลัมน์ H เป็น yyyy-MM-dd HH:mm:ss ตามโซนเวลาของชีต
+ */
+function onEdit(e) {
+  if (!e || !e.range) return;
+
+  const sheet = e.range.getSheet();
+  
+  // Ensure this only runs on the "Sales Tracker" tab
+  if (sheet.getName() !== "Sales Tracker") return;
+
+  const col = e.range.getColumn();
+  const row = e.range.getRow();
+
+  // Column C = 3, skip header row (row < 2)
+  if (col !== 3 || row < 2) return;
+
+  const cell = sheet.getRange(row, 8); // Column H
+
+  if (e.range.getValue() === "") {
+    cell.clearContent();   // clear time if C is emptied
+  } else {
+    var timeZone = e.source.getSpreadsheetTimeZone() || "Asia/Bangkok";
+    var now = new Date();
+    // If you need the +15h Bangkok timezone offset adjustment like your other scripts, uncomment the line below:
+    // now.setHours(now.getHours() + 15);
+    
+    cell.setValue(Utilities.formatDate(now, timeZone, "yyyy-MM-dd HH:mm:ss"));
+  }
+}
