@@ -218,11 +218,16 @@ const dataRows = () => R.data.filter((r, i) => i >= 2 && String(r[0] || '').star
 
 console.log('\n🧪 เทสต์ระบบให้คะแนน (จำลองชีต — ไม่แตะชีตจริง)\n');
 
-console.log('1) ปฏิเสธเมื่อยังไม่ล็อกอิน');
-check('ไม่มี email → ต้องไม่ให้ผ่าน', post({ action: 'rating.set', product_id: 'FWD-001', rating: 4 }).ok === false);
-check('token ผิด → ต้องไม่ให้ผ่าน', post({ action: 'rating.set', email: EMAIL, token: 'wrong', product_id: 'FWD-001', rating: 4 }).ok === false);
-check('ไม่ล็อกอิน → ยังไม่มีแถวถูกเขียน', dataRows().length === 0);
-check('ไม่ล็อกอิน → บล็อกสรุปไม่ถูกแตะ', R.data[2][8] === 'AVG' && R.data[3][8] === 'COUNT');
+console.log('1) ให้คะแนนได้โดยไม่ต้องล็อกอิน');
+check('ไม่มี email → ให้ผ่านแบบไม่ระบุตัวตน', post({ action: 'rating.set', product_id: 'FWD-001', rating: 4 }).ok === true);
+check('token ผิด → ยังให้ผ่าน (ไม่บล็อก)', post({ action: 'rating.set', email: EMAIL, token: 'wrong', product_id: 'FWD-001', rating: 4 }).ok === true);
+check('เขียนแถวได้ 1 แถว (anonymous ทับกันเอง)', dataRows().length === 1, dataRows());
+check('บล็อกสรุปไม่ถูกแตะ', R.data[2][8] === 'AVG' && R.data[3][8] === 'COUNT');
+check('rating.mine ไม่ล็อกอิน → ไม่ error', post({ action: 'rating.mine', product_id: 'FWD-001' }).ok === true);
+
+// 🧹 ล้างแถวทดสอบของข้อ 1 เพื่อให้ข้อ 2+ เริ่มจากชีตว่าง (เทสเดิม)
+R.data = makeRatingSheet().data;
+check('รีเซ็ตชีตแล้ว → ยังไม่มีแถวข้อมูล', dataRows().length === 0);
 
 console.log('\n2) ให้คะแนนครั้งแรก');
 const r1 = post({ action: 'rating.set', email: EMAIL, token: TOKEN, product_id: 'FWD-001', rating: 4.5, comment: 'ดีมาก' });

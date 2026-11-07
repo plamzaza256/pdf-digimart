@@ -7,7 +7,6 @@ import Footer from './components/Footer';
 import Home from './pages/Home';
 import Shop from './pages/Shop';
 import ProductDetail from './pages/ProductDetail';
-import Login from './pages/Login';
 import Favorites from './pages/Favorites';
 
 export default function App() {
@@ -22,9 +21,9 @@ export default function App() {
                 <Route path="/" element={<Home />} />
                 <Route path="/shop" element={<Shop />} />
                 <Route path="/product/:id" element={<ProductDetail />} />
-                <Route path="/login" element={<Login />} />
-                {/* สมัครสมาชิก = เข้าสู่ระบบด้วย Google หน้าเดียวกัน ไม่ต้องมีหน้าแยก */}
-                <Route path="/register" element={<Navigate to="/login" replace />} />
+                {/* ไม่มีระบบล็อกอินแล้ว — /login และ /register พากลับหน้าแรก */}
+                <Route path="/login" element={<Navigate to="/" replace />} />
+                <Route path="/register" element={<Navigate to="/" replace />} />
                 <Route path="/favorites" element={<Favorites />} />
                 {/* หน้าแอดมินย้ายไปอีกเว็บแยกแล้ว — โยกผู้ใช้กลับหน้าแรก */}
                 <Route path="/admin" element={<Navigate to="/" replace />} />

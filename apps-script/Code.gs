@@ -255,15 +255,16 @@ function doPost(e) {
 
 
 
-    // --- ⭐ ให้คะแนนสินค้า (ต้องล็อกอิน — กันสแปมแบบไม่ระบุตัวตน) ---
+    // --- ⭐ ให้คะแนนสินค้า (ไม่ต้องล็อกอินแล้ว) ---
+    //    มี session ก็ใช้ตัวตนจริง · ไม่มีก็ให้คะแนนแบบไม่ระบุตัวตนได้
     if (action === 'rating.set') {
       const sess = _session(body);
-      if (!sess.ok) return _json({ ok: false, error: 'กรุณาเข้าสู่ระบบก่อนให้คะแนน' });
-      return _json(_setRating(sess.user, body));
+      const user = sess.ok ? sess.user : { email: '', user_id: '', name: '' };
+      return _json(_setRating(user, body));
     }
     if (action === 'rating.mine') {
       const sess = _session(body);
-      if (!sess.ok) return _json({ ok: false, error: 'กรุณาเข้าสู่ระบบก่อน' });
+      if (!sess.ok) return _json({ ok: true, rating: null, comment: '' });
       return _json(_myRating(sess.user, body.product_id));
     }
 
@@ -272,8 +273,8 @@ function doPost(e) {
     //    (สูตรเฉลี่ยรายสินค้าของเจ้าของร้านไม่กระทบ เพราะนับเฉพาะรหัสสินค้าจริง)
     if (action === 'website.rate') {
       const sess = _session(body);
-      if (!sess.ok) return _json({ ok: false, error: 'กรุณาเข้าสู่ระบบก่อนให้คะแนน' });
-      return _json(_setRating(sess.user, {
+      const user = sess.ok ? sess.user : { email: '', user_id: '', name: '' };
+      return _json(_setRating(user, {
         product_id: WEBSITE_RATING_ID,
         rating: body.rating,
         comment: body.comment
@@ -281,7 +282,7 @@ function doPost(e) {
     }
     if (action === 'website.rating.mine') {
       const sess = _session(body);
-      if (!sess.ok) return _json({ ok: false, error: 'กรุณาเข้าสู่ระบบก่อน' });
+      if (!sess.ok) return _json({ ok: true, rating: null, comment: '' });
       return _json(_myRating(sess.user, WEBSITE_RATING_ID));
     }
 

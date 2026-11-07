@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '@shared/store/auth';
 import { apiWebsiteRating } from '@shared/lib/api';
 import RatingModal from './RatingModal';
 
@@ -10,14 +8,13 @@ import RatingModal from './RatingModal';
  * 🎯 กติกาเหมือนคะแนนสินค้า
  *   • 5 ดาว ขั้นละ 0.5
  *   • ความคิดเห็นไม่บังคับ
- *   • 🔒 ต้องเข้าสู่ระบบก่อน (กันสแปม)
+ *   • ✅ ให้คะแนนได้เลย ไม่ต้องเข้าสู่ระบบ
  *   • เก็บลงแท็บ Rating เดิม โดยใช้ product_id = "WEBSITE"
  *     (สูตรเฉลี่ยรายสินค้าของเจ้าของร้านไม่กระทบ เพราะนับเฉพาะรหัสสินค้าจริง)
  */
 const WEBSITE_ID = 'WEBSITE';
 
 export default function WebsiteRating() {
-  const { user, token } = useAuth();
   const [open, setOpen] = useState(false);
   const [stats, setStats] = useState<{ avg: number; count: number } | null>(null);
 
@@ -56,21 +53,11 @@ export default function WebsiteRating() {
           )}
         </div>
 
-        {!user || !token ? (
-          <div className="notice warn-box">
-            🔒 <b>ต้องเข้าสู่ระบบก่อน</b> จึงจะให้คะแนนได้ (กันการให้คะแนนปลอม)
-            <br />
-            <Link to="/login" className="btn btn-primary btn-sm" style={{ marginTop: 10 }}>
-              เข้าสู่ระบบด้วย Google
-            </Link>
-          </div>
-        ) : (
-          <div className="web-rate-actions">
-            <button className="btn btn-primary btn-lg" onClick={() => setOpen(true)}>
-              ⭐ ให้คะแนนเว็บไซต์
-            </button>
-          </div>
-        )}
+        <div className="web-rate-actions">
+          <button className="btn btn-primary btn-lg" onClick={() => setOpen(true)}>
+            ⭐ ให้คะแนนเว็บไซต์
+          </button>
+        </div>
       </div>
 
       {open && (

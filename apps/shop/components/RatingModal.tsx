@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '@shared/store/auth';
 import { apiMyRating, apiRateProduct, apiRateWebsite } from '@shared/lib/api';
 
@@ -10,7 +9,7 @@ import { apiMyRating, apiRateProduct, apiRateWebsite } from '@shared/lib/api';
  *   • 5 ดาว ให้คะแนนได้ 0 – 5 เป็นขั้นละ 0.5
  *   • คลิกครึ่งซ้าย = ครึ่งดาว / คลิกครึ่งขวา = เต็มดาว
  *   • ช่องความคิดเห็น = ไม่บังคับ (ลืมไว้ก็ได้)
- *   • 🔒 ต้องเข้าสู่ระบบก่อน (กันสแปมแบบไม่ระบุตัวตน)
+ *   • ✅ ให้คะแนนได้เลย ไม่ต้องเข้าสู่ระบบ
  */
 
 interface Props {
@@ -38,7 +37,6 @@ export default function RatingModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [myRating, setMyRating] = useState<number | null>(null);
-  const [loaded, setLoaded] = useState(false);
 
   // โหลดคะแนนเดิมของผู้ใช้ (ถ้าล็อกอินอยู่)
   useEffect(() => {
@@ -50,9 +48,8 @@ export default function RatingModal({
         setMyRating(Number(r.rating || 0));
         if (r.comment) setComment(String(r.comment));
         setValue(Number(r.rating || 0));
-        setLoaded(true);
       })
-      .catch(() => setLoaded(true));
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -78,7 +75,6 @@ export default function RatingModal({
   const shown = hover || value;
 
   const submit = async () => {
-    if (!user || !token) return;
     if (value <= 0) {
       setError('กดดาวก่อนนะครับ — เลือกได้ตั้งแต่ 0.5 ถึง 5 ดาว');
       return;
@@ -88,8 +84,8 @@ export default function RatingModal({
     try {
       const r =
         kind === 'website'
-          ? await apiRateWebsite(user.email, token, value, comment.trim())
-          : await apiRateProduct(user.email, token, productId, value, comment.trim());
+          ? await apiRateWebsite(user?.email || '', token || '', value, comment.trim())
+          : await apiRateProduct(user?.email || '', token || '', productId, value, comment.trim());
       if (!r.ok) {
         setError(r.error || 'บันทึกคะแนนไม่สำเร็จ ลองใหม่อีกครั้ง');
         return;
@@ -119,16 +115,7 @@ export default function RatingModal({
         <h3>{kind === 'website' ? 'ให้คะแนนเว็บไซต์' : 'ให้คะแนนสินค้า'}</h3>
         <p className="muted small modal-sub">{productTitle}</p>
 
-        {!user || !token ? (
-          <div className="notice warn-box">
-            🔒 <b>ต้องเข้าสู่ระบบก่อน</b> จึงจะให้คะแนนได้
-            <br />
-            <Link to="/login" className="btn btn-primary btn-sm" style={{ marginTop: 10 }}>
-              เข้าสู่ระบบด้วย Google
-            </Link>
-          </div>
-        ) : (
-          <>
+        <>
             {/* ⭐ ช่องเลือกดาว — คลิกครึ่งซ้าย = ครึ่งดาว */}
             <div className="star-row" onMouseLeave={() => setHover(0)}>
               {STARS.map((n) => {
@@ -197,9 +184,6 @@ export default function RatingModal({
               </button>
             </div>
           </>
-        )}
-
-        {!loaded && user && <p className="muted small center">กำลังโหลดคะแนนเดิมของคุณ…</p>}
       </div>
     </div>
   );
