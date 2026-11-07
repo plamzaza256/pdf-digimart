@@ -86,29 +86,11 @@ async function call(action: string, payload: Record<string, unknown> = {}): Prom
 
 // ============================ สมาชิก ============================
 
-/**
- * เข้าสู่ระบบผ่าน Firebase
- * รับ Firebase ID Token ที่หน้าเว็บได้มา → ส่งให้เซิร์ฟเวอร์ตรวจกับ Google
- * เซิร์ฟเวอร์จะคืน "รหัสผู้ใช้" ของเรามาให้เก็บในเบราว์เซอร์
- */
-export function apiFirebaseLogin(idToken: string, name?: string) {
-  return call('user.firebase', { id_token: idToken, name: name || '' });
-}
-
-/**
- * ยืนยันตัวตนด้วยอีเมล + รหัสผู้ใช้ โดยไม่ต้องกรอกรหัสผ่าน
- * นี่คือตัวที่ยืนยันว่า "คนนี้คือคนที่ล็อกอินไว้จริง" ก่อนดึงคลังไฟล์
- */
-export function apiSession(email: string, token: string) {
-  return call('user.session', { email, token });
-}
-
-
 // ============================ ออเดอร์ / คลังไฟล์ ============================
 
 // ============================ ค่าตั้งร้าน ============================
 
-/** ค่าที่หน้าเว็บต้องรู้ก่อนเริ่มทำงาน (Firebase + ข้อมูลร้าน) */
+/** ค่าที่หน้าเว็บต้องรู้ก่อนเริ่มทำงาน (ข้อมูลร้าน) */
 export interface PublicConfig {
   ok: boolean;
   store_name: string;
@@ -119,12 +101,6 @@ export interface PublicConfig {
   /** ลิงก์ LINE OA ของร้าน — ปุ่มสีเขียวพาไปที่นี่ */
   line_oa_link: string;
   banking_open: boolean;
-  firebase: {
-    apiKey: string;
-    authDomain: string;
-    projectId: string;
-    appId: string;
-  };
 }
 
 let publicConfigCache: PublicConfig | null = null;
@@ -142,8 +118,8 @@ export async function apiPublicConfig(): Promise<PublicConfig> {
   const url = getApiUrl();
   if (publicConfigCache && publicConfigCacheUrl === url) return publicConfigCache;
   const data = await getJson<PublicConfig>(`${url}?action=public.config`);
-  if (!data.ok || !data.firebase || !data.firebase.apiKey) {
-    throw new Error('เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า Firebase');
+  if (!data.ok) {
+    throw new Error('เซิร์ฟเวอร์ยังไม่ตอบสนอง');
   }
   publicConfigCache = data;
   publicConfigCacheUrl = url;
@@ -203,26 +179,15 @@ export async function apiGetConfig() {
 // ============================ ⭐ ให้คะแนนสินค้า ============================
 
 /**
- * ⭐ บันทึกคะแนน (ต้องล็อกอิน — กันสแปมแบบไม่ระบุตัวตน)
+ * ⭐ บันทึกคะแนน (ไม่ต้องล็อกอิน — ให้คะแนนแบบไม่ระบุตัวตนได้)
  *
  * เขียนลงแท็บ "Rating" แถว 3 ลงไป
  *   Rating_id | email | User_id | product_id | created_at | rating | comment
  *
  * 1 คน = 1 แถวต่อ 1 สินค้า (บันทึกซ้ำ = ทับแถวเดิม)
  */
-export function apiRateProduct(
-  email: string,
-  token: string,
-  productId: string,
-  rating: number,
-  comment: string,
-) {
-  return call('rating.set', { email, token, product_id: productId, rating, comment });
-}
-
-/** ⭐ คะแนนของผู้ใช้เอง (ต้องล็อกอิน) — ใช้เติมช่องให้คะแนนตอนเปิดครั้งแรก */
-export function apiMyRating(email: string, token: string, productId: string) {
-  return call('rating.mine', { email, token, product_id: productId });
+export function apiRateProduct(productId: string, rating: number, comment: string) {
+  return call('rating.set', { product_id: productId, rating, comment });
 }
 
 // ============================ ⭐ ให้คะแนนเว็บไซต์ ============================
@@ -233,24 +198,14 @@ export function apiMyRating(email: string, token: string, productId: string) {
  * เขียนลงแท็บ Rating เดิม โดยใช้ product_id = "WEBSITE"
  * (สูตรเฉลี่ยรายสินค้าในชีตไม่กระทบ เพราะนับเฉพาะรหัสสินค้าจริง)
  */
-export function apiRateWebsite(
-  email: string,
-  token: string,
-  rating: number,
-  comment: string,
-) {
-  return call('website.rate', { email, token, rating, comment });
+export function apiRateWebsite(rating: number, comment: string) {
+  return call('website.rate', { rating, comment });
 }
 
 /** ⭐ คะแนนเฉลี่ยของเว็บ + จำนวนคนให้คะแนน (อ่านอย่างเดียว) */
 export async function apiWebsiteRating() {
   const res = await fetch(`${apiUrl()}?action=website.rating`);
   return (await res.json()) as { ok: boolean; avg?: number; count?: number };
-}
-
-/** ⭐ คะแนนเว็บของผู้ใช้เอง (ต้องล็อกอิน) */
-export function apiWebsiteRatingMine(email: string, token: string) {
-  return call('website.rating.mine', { email, token });
 }
 
 /**

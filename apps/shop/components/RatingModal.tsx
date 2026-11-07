@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '@shared/store/auth';
-import { apiMyRating, apiRateProduct, apiRateWebsite } from '@shared/lib/api';
+import { apiRateProduct, apiRateWebsite } from '@shared/lib/api';
 
 /**
  * ⭐ ป๊อปอัพให้คะแนนสินค้า
@@ -30,30 +29,11 @@ export default function RatingModal({
   onClose,
   onSaved,
 }: Props) {
-  const { user, token } = useAuth();
   const [value, setValue] = useState(0);
   const [comment, setComment] = useState('');
   const [hover, setHover] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [myRating, setMyRating] = useState<number | null>(null);
-
-  // โหลดคะแนนเดิมของผู้ใช้ (ถ้าล็อกอินอยู่)
-  useEffect(() => {
-    if (!user || !token) return;
-    let cancelled = false;
-    apiMyRating(user.email, token, productId)
-      .then((r) => {
-        if (cancelled || !r.ok) return;
-        setMyRating(Number(r.rating || 0));
-        if (r.comment) setComment(String(r.comment));
-        setValue(Number(r.rating || 0));
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [user, token, productId]);
 
   // ปิดด้วย Esc
   useEffect(() => {
@@ -84,8 +64,8 @@ export default function RatingModal({
     try {
       const r =
         kind === 'website'
-          ? await apiRateWebsite(user?.email || '', token || '', value, comment.trim())
-          : await apiRateProduct(user?.email || '', token || '', productId, value, comment.trim());
+          ? await apiRateWebsite(value, comment.trim())
+          : await apiRateProduct(productId, value, comment.trim());
       if (!r.ok) {
         setError(r.error || 'บันทึกคะแนนไม่สำเร็จ ลองใหม่อีกครั้ง');
         return;
@@ -168,10 +148,6 @@ export default function RatingModal({
                 placeholder={kind === 'website' ? 'เช่น สั่งง่าย ตอบไว ขอบคุณค่ะ' : 'เช่น ข้อสอบชัด ตรงเลข ถูกใจมาก'}
               />
             </label>
-
-            {myRating !== null && myRating > 0 && (
-              <p className="muted small">คุณให้คะแนนสินค้านี้ไว้ {myRating.toFixed(1)} ดาวแล้ว (บันทึกใหม่จะทับของเดิม)</p>
-            )}
 
             {error && <p className="rate-error">{error}</p>}
 

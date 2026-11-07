@@ -1,5 +1,4 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from '@shared/store/auth';
 import { StoreConfigProvider } from '@shared/store/config';
 import { ShopProvider } from './store/shop';
 import Navbar from './components/Navbar';
@@ -13,8 +12,7 @@ export default function App() {
   return (
     <HashRouter>
       <StoreConfigProvider>
-        <AuthProvider>
-          <ShopProvider>
+        <ShopProvider>
             <Navbar />
             <main className="main">
               <Routes>
@@ -32,7 +30,6 @@ export default function App() {
             </main>
             <Footer />
           </ShopProvider>
-        </AuthProvider>
       </StoreConfigProvider>
     </HashRouter>
   );
