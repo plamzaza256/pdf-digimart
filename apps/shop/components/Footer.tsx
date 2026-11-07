@@ -22,7 +22,6 @@ export default function Footer() {
             <li><Link to="/">หน้าแรก</Link></li>
             <li><Link to="/shop">Search</Link></li>
             <li><Link to="/favorites">สินค้าที่ถูกใจ</Link></li>
-            <li><Link to="/login">เข้าสู่ระบบ</Link></li>
             <li><a href="/#rate-website">⭐ ให้คะแนนเว็บไซต์</a></li>
           </ul>
         </div>
