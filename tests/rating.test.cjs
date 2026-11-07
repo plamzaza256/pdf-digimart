@@ -192,7 +192,20 @@ const sandbox = {
     MimeType: { JSON: 'json' },
   },
   Session: { getActiveUser: () => ({ getEmail: () => '' }) },
+  // 📧 จำลองการส่งเมล + cache คูลดาวน์ (ใช้ในเทสข้อ 10)
+  Logger: { log: () => {} },
+  MailApp: { sendEmail: (to, subject) => { SENT_EMAILS.push({ to: to, subject: subject }); } },
+  CacheService: {
+    getScriptCache: () => ({
+      get: (k) => (CACHE.has(k) ? CACHE.get(k) : null),
+      put: (k, v) => { CACHE.set(k, String(v)); },
+    }),
+  },
 };
+
+// 📥 กล่องเก็บอีเมลที่ "ส่ง" จริงในเทส + cache คูลดาวน์
+const SENT_EMAILS = [];
+const CACHE = new Map();
 
 vm.createContext(sandbox);
 vm.runInContext(CODE, sandbox);
@@ -341,6 +354,36 @@ console.log('\n9) ระบบสมาชิก — หัวตารางอ
 
   // 🔢 นับ UID ต้องรับเฉพาะรูปแบบ UID_####
   check('UID ต่อไป = UID_0008', sandbox._nextUserId() === 'UID_0008');
+}
+
+console.log('\n10) คูลดาวน์อีเมลแจ้งเตือน (กัน inbox ถล่ม)');
+{
+  // 🧹 เริ่มจาก cache ว่าง
+  CACHE.clear();
+  SENT_EMAILS.length = 0;
+
+  // ให้คะแนนสินค้าใหม่ → ต้องส่งเมล 1 ฉบับ
+  post({ action: 'rating.set', email: EMAIL, token: TOKEN, product_id: 'COOLD-001', rating: 5, comment: 'รอบแรก' });
+  check('รอบแรก → ส่งเมล 1 ฉบับ', SENT_EMAILS.length === 1, SENT_EMAILS.length);
+
+  // ยิงซ้ำทันที (คนเดิม/สินค้าเดิม) → ต้องถูกบล็อก
+  post({ action: 'rating.set', email: EMAIL, token: TOKEN, product_id: 'COOLD-001', rating: 1, comment: 'ยิงรัว' });
+  check('ยิงซ้ำทันที → ไม่ส่งเพิ่ม', SENT_EMAILS.length === 1, SENT_EMAILS.length);
+
+  // คนละสินค้าแต่ยังอยู่ในรอบ "รวมทุกสินค้า" → ต้องถูกบล็อกด้วย
+  post({ action: 'rating.set', email: EMAIL, token: TOKEN, product_id: 'COOLD-002', rating: 5 });
+  check('คนละสินค้าแต่ยังในรอบ 10 นาที → ไม่ส่ง', SENT_EMAILS.length === 1, SENT_EMAILS.length);
+
+  // ✅ สำคัญ: การถูกบล็อกเมล ห้ามทำให้การบันทึกคะแนนพัง
+  check('คะแนนยังถูกบันทึกลงชีตแม้เมลถูกบล็อก', dataRows().some((r) => String(r[3]) === 'COOLD-001'));
+
+  // ⏱️ จำลองหมดรอบคูลดาวน์ → ต้องส่งได้อีก
+  CACHE.clear();
+  post({ action: 'rating.set', email: EMAIL, token: TOKEN, product_id: 'COOLD-002', rating: 4 });
+  check('หมดรอบคูลดาวน์ → ส่งได้อีก', SENT_EMAILS.length === 2, SENT_EMAILS.length);
+
+  // 📬 ผู้รับ = Empggez112@gmail.com เท่านั้น
+  check('ส่งไปที่ Empggez112@gmail.com', SENT_EMAILS.every((m) => m.to === 'Empggez112@gmail.com'), SENT_EMAILS);
 }
 
 console.log('\n─────────────────────────────');

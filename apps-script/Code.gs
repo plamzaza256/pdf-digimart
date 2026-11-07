@@ -36,6 +36,21 @@ const ADMIN_NAME = 'เจ้าของร้าน';
  */
 const NOTIFY_EMAIL = 'Empggez112@gmail.com';
 
+/**
+ * 🛡️ คูลดาวน์อีเมลแจ้งเตือน — กัน inbox ถล่ม
+ *
+ *    เดิมระบบไม่ได้ล็อกอินแล้ว → ใครก็ยิงให้คะแนนได้ไม่จำกัด
+ *    แล้วทุกครั้งจะส่งอีเมล 1 ฉบับ → คนร้ายยิงรัวได้ = inbox เจ้าของร้านระเบิด
+ *
+ *    ตอนนี้บังคับ:
+ *      • ต่อสินค้า   → อย่างมาก 1 ฉบับ / 10 นาที
+ *      • รวมทุกสินค้า → อย่างมาก 1 ฉบับ / 10 นาที (กันยิงหลายสินค้ารัว ๆ)
+ *
+ *    ⚠️ ถ้าอ่าน/เขียน cache ไม่ได้ → "ส่ง" ดีกว่าให้ข่าวหาย (ชั่งมัน)
+ *    🛑 ยังไงก็ตาม การแจ้งเตือนไม่มีทางทำให้การบันทึกคะแนนพัง
+ */
+const NOTIFY_COOLDOWN_MS = 10 * 60 * 1000;
+
 const SHEET_PRODUCTS = 'Products';
 const SHEET_CONFIG = 'Config';
 const SHEET_USERS = 'user_id';
@@ -1152,9 +1167,38 @@ function _notifyOwner(subject, body) {
  * @param {string} comment ความเห็น
  * @param {boolean} isUpdate แก้ของเดิมหรือเพิ่มใหม่
  */
+/**
+ * 🔇 ยังอยู่ในรอบคูลดาวน์ไหม (true = ห้ามส่งรอบนี้)
+ *    อ่าน cache ไม่ได้ → คืน false (ให้ส่ง) กันข่าวหาย
+ */
+function _notifyCoolingDown_(key) {
+  try {
+    return !!CacheService.getScriptCache().get(key);
+  } catch (e) {
+    return false;
+  }
+}
+
+/** 🔔 จดว่า "เพิ่งส่งไป" เพื่อเริ่มนับคูลดาวน์ (ล้มเหลวก็ไม่เป็นไร) */
+function _notifyMark_(key) {
+  try {
+    CacheService.getScriptCache().put(key, '1', Math.max(60, Math.round(NOTIFY_COOLDOWN_MS / 1000)));
+  } catch (e) {
+    _log_('notifyMark ข้าม (ไม่กระทบอะไร): ' + e);
+  }
+}
+
 function _notifyRating(email, productId, rating, comment, isUpdate) {
   // 🛑 ห้ามให้ "การแจ้งเตือน" ทำให้การบันทึกคะแนนพังเด็ดขาด
   try {
+    // 🛡️ คูลดาวน์ก่อนสร้างเนื้อหา — ยิงรัวได้แค่ 1 ฉบับ / 10 นาที
+    const keyProduct = 'ntf_p_' + String(productId);
+    const keyAll = 'ntf_all';
+    if (_notifyCoolingDown_(keyProduct) || _notifyCoolingDown_(keyAll)) {
+      _log_('notifyRating: อยู่ในรอบคูลดาวน์ → ข้ามอีเมล (' + productId + ')');
+      return;
+    }
+
     const isWeb = String(productId) === WEBSITE_RATING_ID;
     const stars = '⭐'.repeat(Math.max(1, Math.round(rating))) + ' (' + rating + '/5)';
     const head = isWeb
@@ -1174,7 +1218,11 @@ function _notifyRating(email, productId, rating, comment, isUpdate) {
       _sheetUrl_()
     ];
 
-    _notifyOwner(head, lines.join('\n'));
+    // 🔔 ส่งสำเร็จค่อยเริ่มนับคูลดาวน์ → ส่งพังจะได้ลองใหม่ในรอบถัดไป
+    if (_notifyOwner(head, lines.join('\n'))) {
+      _notifyMark_(keyProduct);
+      _notifyMark_(keyAll);
+    }
   } catch (e) {
     _log_('notifyRating ข้าม (ไม่กระทบการบันทึกคะแนน): ' + e);
   }
