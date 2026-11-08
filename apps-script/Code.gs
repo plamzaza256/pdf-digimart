@@ -1081,17 +1081,18 @@ function _ratingStats() {
  *    คืนเฉพาะ: ดาว + ความเห็น + วันที่ + ชื่อที่ปกปิดแล้ว (เช่น "j***@gmail.com")
  *
  * @param {string} productId รหัสสินค้า
- * @param {string} stars ดาวที่ต้องการ (1-5) — ว่าง = ทุกดาว
- * @return {object} { ok, reviews: [...], avg, count, dist: {5: n, 4: n, 3: n, 2: n, 1: n} }
+ * @param {string} stars ดาวที่ต้องการ (0.5-5 ขั้นละ 0.5) — ว่าง/ผิดกฎหมาย = ทุกดาว
+ * @return {object} { ok, reviews: [...], avg, count, dist: { "5": n, "4.5": n, ... } }
+ *                   dist มีเฉพาะดาวที่มีรีวิวจริง (ไว้โชว์แท็บให้ลูกค้ากด)
  */
 function _ratingList(productId, stars) {
-  const empty = { ok: true, reviews: [], avg: 0, count: 0, dist: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } };
+  const empty = { ok: true, reviews: [], avg: 0, count: 0, dist: {} };
   const id = String(productId || '').trim();
   if (!id) return empty;
 
-  // 🏷️ ดาวที่ลูกค้าเลือก (1-5 เท่านั้น — อย่างอื่น = ไม่กรอง)
-  const want = Math.round(Number(stars));
-  const useFilter = isFinite(want) && want >= 1 && want <= 5 && String(stars || '') !== '';
+  // 🏷️ ดาวที่ลูกค้าเลือก — ต้องเป็น 0.5/1/1.5/.../5 เท่านั้น (อย่างอื่น = ไม่กรอง)
+  const want = Math.round(Number(stars) * 2) / 2;
+  const useFilter = String(stars || '') !== '' && isFinite(want) && want >= 0.5 && want <= 5;
 
   try {
     const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_RATING);
@@ -1113,8 +1114,9 @@ function _ratingList(productId, stars) {
     if (cProduct === -1 || cRating === -1) return empty;
 
     const reviews = [];
-    // 📊 นับจำนวนรีวิว "ทุกดาว" เสมอ (ไว้โชว์ป้าย 5★ 9 · 4★ 1 บนหน้าเว็บ)
-    const dist = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    // 📊 นับจำนวนรีวิว "แยกตามดาวจริง" (5 กับ 4.5 แยกกัน)
+    //    เก็บเฉพาะดาวที่มีรีวิว → เว็บเอาไปทำแท็บให้กดได้พอดี ไม่มีแท็บว่างโผล่
+    const dist = {};
     let sum = 0;
     let n = 0;
     for (let r = hIdx + 1; r < all.length; r++) {
@@ -1125,10 +1127,11 @@ function _ratingList(productId, stars) {
       if (!isFinite(rv) || rv <= 0) continue;        // ข้ามแถวที่ยังไม่มีคะแนน
       sum += rv;
       n++;
-      // ⭐ คะแนนครึ่งดาว (4.5) → ปัดเป็นดาวเต็มที่ใกล้ที่สุด เพื่อจัดหมวด
-      const bucket = Math.max(1, Math.min(5, Math.round(rv)));
-      dist[bucket] = dist[bucket] + 1;
-      if (useFilter && bucket !== want) continue;    // เลือกดูแค่ดาวที่กด
+      // ⭐ ปัดเป็นขั้น 0.5 ก่อนนับ (กันค่าแปลก ๆ ในชีต เช่น 4.49)
+      const half = Math.round(rv * 2) / 2;
+      const key = String(half);
+      dist[key] = (dist[key] || 0) + 1;
+      if (useFilter && half !== want) continue;      // เลือกดูแค่ดาวที่กด (4.5 = หมวดของตัวเอง)
 
       reviews.push({
         rating: Math.round(rv * 100) / 100,

@@ -209,8 +209,8 @@ export async function apiRatingList(productId: string, stars?: number | null) {
     reviews?: { rating: number; comment: string; date: string; author: string }[];
     avg?: number;
     count?: number;
-    /** จำนวนรีวิวแยกตามดาว (5 → 1) ใช้ทำป้ายกดเลือก */
-    dist?: { 5: number; 4: number; 3: number; 2: number; 1: number };
+    /** จำนวนรีวิวแยกตามดาวจริง (กุญแจ = "5", "4.5", "4"...) มีเฉพาะดาวที่มีรีวิวจริง */
+    dist?: Record<string, number>;
   };
 }
 

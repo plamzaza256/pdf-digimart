@@ -433,7 +433,7 @@ console.log('\n11) rating.list — รีวิวบนหน้าสินค
 
 console.log('\n12) rating.list — กรองตามหมวดดาว (5 → 1) + นับจำนวนต่อดาว');
 {
-  // 🧹 ชีตใหม่ มีรีวิว: 5 ดาว 2 คน · 4 ดาว 1 คน · 3 ดาว 1 คน · 4.5 ดาว 1 คน (ต้องนับรวม 5 ดาว)
+  // 🧹 ชีตใหม่ มีรีวิว: 5 ดาว 1 คน · 4 ดาว 1 คน · 3 ดาว 1 คน · 4.5 ดาว 1 คน · 1 ดาว 1 คน (4.5 แยกหมวดของตัวเอง)
   R.data = makeRatingSheet().data;
   const seed = [
     ['uuid-s1', 'a@x.com', 'UID_1', 'FWD-001', new Date('2026-11-01'), 5, 'ห้าดาว'],
@@ -446,19 +446,22 @@ console.log('\n12) rating.list — กรองตามหมวดดาว (5
   seed.forEach((row, i) => { R.data[2 + i] = row.slice(); });
 
   const all = JSON.parse(sandbox.doGet({ parameter: { action: 'rating.list', id: 'FWD-001' } }).getContent());
-  check('นับจำนวนต่อดาว: 5★ = 2', Number(all.dist[5]) === 2, all.dist);
-  check('นับจำนวนต่อดาว: 4★ = 1', Number(all.dist[4]) === 1, all.dist);
-  check('นับจำนวนต่อดาว: 3★ = 1', Number(all.dist[3]) === 1, all.dist);
-  check('นับจำนวนต่อดาว: 1★ = 1', Number(all.dist[1]) === 1, all.dist);
-  check('4.5 ดาว → นับรวมหมวด 5 ดาว', Number(all.dist[5]) === 2 && all.reviews.some((r) => r.rating === 4.5), all.dist);
+  check('นับจำนวนต่อดาว: 5 ดาว = 1', Number(all.dist['5']) === 1, all.dist);
+  check('นับจำนวนต่อดาว: 4 ดาว = 1', Number(all.dist['4']) === 1, all.dist);
+  check('นับจำนวนต่อดาว: 3 ดาว = 1', Number(all.dist['3']) === 1, all.dist);
+  check('นับจำนวนต่อดาว: 1 ดาว = 1', Number(all.dist['1']) === 1, all.dist);
+  check('4.5 เป็นหมวดของตัวเอง (ไม่รวมกับ 5)', Number(all.dist['4.5']) === 1 && Number(all.dist['5']) === 1, all.dist);
+  check('มีเฉพาะดาวที่มีรีวิวจริง (ไม่มี 2 โผล่)', all.dist['2'] === undefined && all.dist['0.5'] === undefined, all.dist);
   check('รวมทุกดาว = 5 รีวิว', all.reviews.length === 5, all.reviews.length);
   check('ไม่มีรีวิวของสินค้าอื่น', !all.reviews.some((r) => r.comment === 'สินค้าอื่นห้ามปน'));
 
-  // 🏷️ กรอง 5 ดาว (ค่าเริ่มต้นของหน้าเว็บ) → เฉพาะ 5 ดาว + 4.5
+  // 🏷️ กรอง 5 ดาว (ค่าเริ่มต้นของหน้าเว็บ) → เฉพาะ 5 ดาวเต็ม ไม่มี 4.5 ปน
   const f5 = JSON.parse(sandbox.doGet({ parameter: { action: 'rating.list', id: 'FWD-001', stars: '5' } }).getContent());
-  check('กรอง 5 ดาว → 2 รีวิว', f5.reviews.length === 2, f5.reviews.map((r) => r.rating));
-  check('กรอง 5 ดาว → ไม่มี 3 ดาว ปน', !f5.reviews.some((r) => r.rating < 4.5));
-  check('กรองแล้ว dist ยังครบ (ไว้โชว์ป้าย)', Number(f5.dist[3]) === 1, f5.dist);
+  check('กรอง 5 ดาว → 1 รีวิว (4.5 ไม่ปน)', f5.reviews.length === 1 && f5.reviews[0].rating === 5, f5.reviews);
+  check('กรองแล้ว dist ยังครบ (ไว้โชว์ป้าย)', Number(f5.dist['3']) === 1 && Number(f5.dist['4.5']) === 1, f5.dist);
+
+  const f45 = JSON.parse(sandbox.doGet({ parameter: { action: 'rating.list', id: 'FWD-001', stars: '4.5' } }).getContent());
+  check('กรอง 4.5 ดาว → 1 รีวิว (เป็นปุ่มของตัวเอง)', f45.reviews.length === 1 && f45.reviews[0].rating === 4.5, f45.reviews);
 
   const f3 = JSON.parse(sandbox.doGet({ parameter: { action: 'rating.list', id: 'FWD-001', stars: '3' } }).getContent());
   check('กรอง 3 ดาว → 1 รีวิว', f3.reviews.length === 1 && f3.reviews[0].rating === 3, f3.reviews);
@@ -468,6 +471,9 @@ console.log('\n12) rating.list — กรองตามหมวดดาว (5
 
   const bad = JSON.parse(sandbox.doGet({ parameter: { action: 'rating.list', id: 'FWD-001', stars: '99' } }).getContent());
   check('ดาวผิดกฎหมาย (99) → ไม่ error ไม่กรอง', bad.ok && bad.reviews.length === 5, bad.reviews.length);
+
+  const bad2 = JSON.parse(sandbox.doGet({ parameter: { action: 'rating.list', id: 'FWD-001', stars: 'abc' } }).getContent());
+  check('ดาวไม่ใช่ตัวเลข → ไม่ error ไม่กรอง', bad2.ok && bad2.reviews.length === 5, bad2.reviews.length);
 
   // 🔒 อ่านอย่างเดียว
   const snapshot = JSON.stringify(R.data);

@@ -77,10 +77,16 @@ export default function ProductDetail() {
   // ⭐ รีวิวจากลูกค้าคนอื่น (โหลดจากเซิร์ฟเวอร์ — อ่านอย่างเดียว)
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewsCount, setReviewsCount] = useState(0);
-  // 🏷️ กรองตามดาว — เริ่มต้นที่ "5 ดาว" (เน้นให้เห็นคำชมก่อน)
+  // 🏷️ กรองตามดาว — ป้ายแท็บมี "เฉพาะดาวที่มีรีวิวจริง" (เช่น มีแค่ 5 กับ 4.5 → ขึ้น 2 ปุ่มนั้น)
   const [starFilter, setStarFilter] = useState<number | null>(5);
-  const [starDist, setStarDist] = useState({ 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 });
+  const [starDist, setStarDist] = useState<Record<string, number>>({});
   const [reviewsLoading, setReviewsLoading] = useState(true);
+
+  // 🔢 ดาวที่มีรีวิวจริง เรียงจากมากไปน้อย (5 → 4.5 → 4 → ...)
+  const starChoices = Object.keys(starDist)
+    .filter((k) => Number(starDist[k]) > 0)
+    .map(Number)
+    .sort((a, b) => b - a);
   // 🔗 สถานะปุ่มคัดลอกลิงก์ ('' = ยังไม่ทำอะไร · 'ok' = คัดลอกสำเร็จ · 'fail' = คัดลอกไม่ได้ → โชว์ลิงก์ให้คัดเอง)
   const [copyState, setCopyState] = useState<'' | 'ok' | 'fail'>('');
 
@@ -95,25 +101,39 @@ export default function ProductDetail() {
         if (cancelled) return;
         if (r.ok) {
           const list = Array.isArray(r.reviews) ? r.reviews : [];
-          // 🛟 กรองซ้ำฝั่งหน้าเว็บ — ถ้าเซิร์ฟเวอร์ยังเป็นเวอร์ชันเก่า (ไม่รับพารามิเตอร์ stars)
-          //    หน้าเว็บก็ยังแสดงหมวดที่ถูกต้อง ไม่มีดาวอื่นปน
-          setReviews(
-            starFilter
-              ? list.filter((rv) => Math.round(rv.rating) === starFilter)
-              : list,
-          );
-          setReviewsCount(Number(r.count || 0));
-          if (r.dist) {
-            setStarDist(r.dist);
+          // 📊 นับจำนวนต่อดาว (ดาวจริง 5 กับ 4.5 แยกกัน) — มีเฉพาะดาวที่มีรีวิว
+          const serverSaid = !!(r.dist && Object.keys(r.dist).length > 0);
+          const d: Record<string, number> = {};
+          if (serverSaid) {
+            Object.assign(d, r.dist as Record<string, number>);
           } else {
-            // 🛟 เซิร์ฟเวอร์ยังไม่ส่งจำนวนต่อดาว (เวอร์ชันเก่า) → นับจากที่ได้มาเอง
-            const d = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+            // 🛟 เซิร์ฟเวอร์เวอร์ชันเก่าไม่ส่ง dist → นับจากที่ได้มาเอง
             list.forEach((rv) => {
-              const b = Math.max(1, Math.min(5, Math.round(rv.rating)));
-              d[b as 5 | 4 | 3 | 2 | 1] += 1;
+              const key = String(Math.round(rv.rating * 2) / 2);
+              d[key] = (d[key] || 0) + 1;
             });
-            setStarDist(d);
           }
+          setStarDist(d);
+
+          const choices = Object.keys(d)
+            .filter((k) => Number(d[k]) > 0)
+            .map(Number)
+            .sort((a, b) => b - a);
+
+          if (starFilter === null) {
+            // 👁️ เลือกดู "ทั้งหมด" → โชว์ทุกรีวิวที่ได้มา
+            setReviews(list);
+          } else if (!choices.includes(starFilter)) {
+            // 🎯 ดาวที่เลือกไว้ยังไม่มีรีวิวแล้ว → กระโดดไปดาวสูงสุดที่มีจริง (โหลดใหม่เอง)
+            setStarFilter(choices.length ? choices[0] : null);
+          } else if (serverSaid) {
+            // ✅ เซิร์ฟเวอร์กรองมาให้แล้ว → ใช้ตามนั้น (ตรงกับตัวเลขบนป้ายเป๊ะ)
+            setReviews(list);
+          } else {
+            // 🛟 เซิร์ฟเวอร์เก่าไม่รับพารามิเตอร์ stars → กรองซ้ำฝั่งหน้าเว็บเอง
+            setReviews(list.filter((rv) => Math.round(rv.rating * 2) / 2 === starFilter));
+          }
+          setReviewsCount(Number(r.count || 0));
         }
         setReviewsLoading(false);
       })
@@ -331,11 +351,12 @@ export default function ProductDetail() {
           )}
         </h2>
 
-        {/* 🏷️ แถบเลือกดาว — กดดูรีวิวตามหมวด (โชว์จำนวนของแต่ละดาว) */}
-        {reviewsCount > 0 && (
+        {/* 🏷️ แถบเลือกดาว — ขึ้น "เฉพาะดาวที่มีรีวิวจริง" เท่านั้น
+            (สินค้ามีแค่ 5 กับ 4.5 → ขึ้นแค่ 2 ปุ่มนั้น ไม่มีแท็บว่างให้รก) */}
+        {reviewsCount > 0 && starChoices.length > 0 && (
           <div className="star-filter" role="tablist" aria-label="กรองรีวิวตามดาว">
-            {([5, 4, 3, 2, 1] as const).map((s) => {
-              const n = Number(starDist[s] || 0);
+            {starChoices.map((s) => {
+              const n = Number(starDist[String(s)] || 0);
               const active = starFilter === s;
               return (
                 <button
@@ -343,8 +364,8 @@ export default function ProductDetail() {
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  className={`star-chip${active ? ' is-on' : ''}${n === 0 ? ' is-empty' : ''}`}
-                  onClick={() => setStarFilter(active && starFilter === s ? null : s)}
+                  className={`star-chip${active ? ' is-on' : ''}`}
+                  onClick={() => setStarFilter(s)}
                 >
                   {s} ★ <b>{n}</b>
                 </button>
