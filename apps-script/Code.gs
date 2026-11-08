@@ -253,7 +253,8 @@ function doGet(e) {
     if (action === 'product.view') return _json(_bumpViews(p.id));
 
     // ⭐ รีวิวล่าสุดของสินค้า (อ่านอย่างเดียว — โชว์บนหน้าสินค้า)
-    if (action === 'rating.list') return _json(_ratingList(p.id));
+    //    ?stars=5 → ดูเฉพาะรีวิว 5 ดาว (ไม่ส่ง = ทุกดาว)
+    if (action === 'rating.list') return _json(_ratingList(p.id, p.stars));
 
     return _json({ ok: false, error: 'ไม่รู้จักคำสั่ง: ' + action });
   } catch (err) {
@@ -1080,12 +1081,17 @@ function _ratingStats() {
  *    คืนเฉพาะ: ดาว + ความเห็น + วันที่ + ชื่อที่ปกปิดแล้ว (เช่น "j***@gmail.com")
  *
  * @param {string} productId รหัสสินค้า
- * @return {object} { ok, reviews: [...], avg, count }
+ * @param {string} stars ดาวที่ต้องการ (1-5) — ว่าง = ทุกดาว
+ * @return {object} { ok, reviews: [...], avg, count, dist: {5: n, 4: n, 3: n, 2: n, 1: n} }
  */
-function _ratingList(productId) {
-  const empty = { ok: true, reviews: [], avg: 0, count: 0 };
+function _ratingList(productId, stars) {
+  const empty = { ok: true, reviews: [], avg: 0, count: 0, dist: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } };
   const id = String(productId || '').trim();
   if (!id) return empty;
+
+  // 🏷️ ดาวที่ลูกค้าเลือก (1-5 เท่านั้น — อย่างอื่น = ไม่กรอง)
+  const want = Math.round(Number(stars));
+  const useFilter = isFinite(want) && want >= 1 && want <= 5 && String(stars || '') !== '';
 
   try {
     const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_RATING);
@@ -1107,6 +1113,8 @@ function _ratingList(productId) {
     if (cProduct === -1 || cRating === -1) return empty;
 
     const reviews = [];
+    // 📊 นับจำนวนรีวิว "ทุกดาว" เสมอ (ไว้โชว์ป้าย 5★ 9 · 4★ 1 บนหน้าเว็บ)
+    const dist = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
     let sum = 0;
     let n = 0;
     for (let r = hIdx + 1; r < all.length; r++) {
@@ -1117,6 +1125,11 @@ function _ratingList(productId) {
       if (!isFinite(rv) || rv <= 0) continue;        // ข้ามแถวที่ยังไม่มีคะแนน
       sum += rv;
       n++;
+      // ⭐ คะแนนครึ่งดาว (4.5) → ปัดเป็นดาวเต็มที่ใกล้ที่สุด เพื่อจัดหมวด
+      const bucket = Math.max(1, Math.min(5, Math.round(rv)));
+      dist[bucket] = dist[bucket] + 1;
+      if (useFilter && bucket !== want) continue;    // เลือกดูแค่ดาวที่กด
+
       reviews.push({
         rating: Math.round(rv * 100) / 100,
         comment: String(cComment !== -1 ? row[cComment] || '' : '').trim().slice(0, 500),
@@ -1126,15 +1139,16 @@ function _ratingList(productId) {
       });
     }
 
-    // ⬇️ ใหม่ก่อน + จำกัด 20 รีวิวล่าสุด (กันหน้าเว็บหนักถ้าสินค้าดัง)
+    // ⬇️ ใหม่ก่อน + จำกัด 60 รายการ (กันหน้าเว็บหนักถ้าสินค้าดัง)
     reviews.sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
-    const out = reviews.slice(0, 20);
+    const out = reviews.slice(0, 60);
 
     return {
       ok: true,
       reviews: out,
       avg: n ? Math.round((sum / n) * 100) / 100 : 0,
-      count: n
+      count: n,
+      dist: dist
     };
   } catch (e) {
     _log_('ratingList ล้มเหลว (ไม่กระทบอะไร): ' + e);

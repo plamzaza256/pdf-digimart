@@ -195,16 +195,22 @@ export function apiRateProduct(productId: string, rating: number, comment: strin
  *
  * คืน ดาว + ความเห็น + วันที่ + ชื่อปกปิดแล้ว (อีเมลจริงไม่ออกจากชีต)
  * ใช้โชว์ในกล่อง "รีวิวจากลูกค้า" ที่หน้าสินค้า
+ *
+ * @param productId รหัสสินค้า
+ * @param stars ดูเฉพาะรีวิวดาวนั้น (1-5) · ไม่ส่ง = ทุกดาว
  */
-export async function apiRatingList(productId: string) {
-  const res = await fetch(
-    `${apiUrl()}?action=rating.list&id=${encodeURIComponent(productId)}`,
-  );
+export async function apiRatingList(productId: string, stars?: number | null) {
+  const qs =
+    `action=rating.list&id=${encodeURIComponent(productId)}` +
+    (stars ? `&stars=${encodeURIComponent(String(stars))}` : '');
+  const res = await fetch(`${apiUrl()}?${qs}`);
   return (await res.json()) as {
     ok: boolean;
     reviews?: { rating: number; comment: string; date: string; author: string }[];
     avg?: number;
     count?: number;
+    /** จำนวนรีวิวแยกตามดาว (5 → 1) ใช้ทำป้ายกดเลือก */
+    dist?: { 5: number; 4: number; 3: number; 2: number; 1: number };
   };
 }
 

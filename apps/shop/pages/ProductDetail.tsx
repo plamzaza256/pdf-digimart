@@ -77,24 +77,53 @@ export default function ProductDetail() {
   // ⭐ รีวิวจากลูกค้าคนอื่น (โหลดจากเซิร์ฟเวอร์ — อ่านอย่างเดียว)
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewsCount, setReviewsCount] = useState(0);
+  // 🏷️ กรองตามดาว — เริ่มต้นที่ "5 ดาว" (เน้นให้เห็นคำชมก่อน)
+  const [starFilter, setStarFilter] = useState<number | null>(5);
+  const [starDist, setStarDist] = useState({ 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 });
+  const [reviewsLoading, setReviewsLoading] = useState(true);
   // 🔗 สถานะปุ่มคัดลอกลิงก์ ('' = ยังไม่ทำอะไร · 'ok' = คัดลอกสำเร็จ · 'fail' = คัดลอกไม่ได้ → โชว์ลิงก์ให้คัดเอง)
   const [copyState, setCopyState] = useState<'' | 'ok' | 'fail'>('');
 
-  // ⬇️ โหลดรีวิวของสินค้า (ล้มเหลวก็ปล่อย — ห้ามขึ้น error ให้ลูกค้าเห็น)
+  // ⬇️ โหลดรีวิวของสินค้า — ตามดาวที่เลือก (ค่าเริ่มต้น 5 ดาว)
+  //    ล้มเหลวก็ปล่อย — ห้ามขึ้น error ให้ลูกค้าเห็น
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    apiRatingList(id)
+    setReviewsLoading(true);
+    apiRatingList(id, starFilter)
       .then((r) => {
-        if (cancelled || !r.ok) return;
-        setReviews(Array.isArray(r.reviews) ? r.reviews : []);
-        setReviewsCount(Number(r.count || 0));
+        if (cancelled) return;
+        if (r.ok) {
+          const list = Array.isArray(r.reviews) ? r.reviews : [];
+          // 🛟 กรองซ้ำฝั่งหน้าเว็บ — ถ้าเซิร์ฟเวอร์ยังเป็นเวอร์ชันเก่า (ไม่รับพารามิเตอร์ stars)
+          //    หน้าเว็บก็ยังแสดงหมวดที่ถูกต้อง ไม่มีดาวอื่นปน
+          setReviews(
+            starFilter
+              ? list.filter((rv) => Math.round(rv.rating) === starFilter)
+              : list,
+          );
+          setReviewsCount(Number(r.count || 0));
+          if (r.dist) {
+            setStarDist(r.dist);
+          } else {
+            // 🛟 เซิร์ฟเวอร์ยังไม่ส่งจำนวนต่อดาว (เวอร์ชันเก่า) → นับจากที่ได้มาเอง
+            const d = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+            list.forEach((rv) => {
+              const b = Math.max(1, Math.min(5, Math.round(rv.rating)));
+              d[b as 5 | 4 | 3 | 2 | 1] += 1;
+            });
+            setStarDist(d);
+          }
+        }
+        setReviewsLoading(false);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) setReviewsLoading(false);
+      });
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, starFilter]);
 
   if (!p) {
     return (
@@ -291,7 +320,7 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      {/* ⭐ รีวิวจากลูกค้า — ดาว + คำชมจริงจากชีต (อีเมลถูกปกปิดไว้) */}
+      {/* ⭐ รีวิวจากลูกค้า — แยกตามดาว 5 → 1 (ค่าเริ่มต้น = 5 ดาว) + เลื่อนดูได้ */}
       <section className="reviews-box" aria-label="รีวิวจากลูกค้า">
         <h2 className="reviews-title">
           ⭐ รีวิวจากลูกค้า
@@ -302,11 +331,47 @@ export default function ProductDetail() {
           )}
         </h2>
 
-        {reviews.length === 0 ? (
+        {/* 🏷️ แถบเลือกดาว — กดดูรีวิวตามหมวด (โชว์จำนวนของแต่ละดาว) */}
+        {reviewsCount > 0 && (
+          <div className="star-filter" role="tablist" aria-label="กรองรีวิวตามดาว">
+            {([5, 4, 3, 2, 1] as const).map((s) => {
+              const n = Number(starDist[s] || 0);
+              const active = starFilter === s;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`star-chip${active ? ' is-on' : ''}${n === 0 ? ' is-empty' : ''}`}
+                  onClick={() => setStarFilter(active && starFilter === s ? null : s)}
+                >
+                  {s} ★ <b>{n}</b>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={starFilter === null}
+              className={`star-chip chip-all${starFilter === null ? ' is-on' : ''}`}
+              onClick={() => setStarFilter(null)}
+            >
+              ทั้งหมด <b>{reviewsCount}</b>
+            </button>
+          </div>
+        )}
+
+        {reviewsLoading ? (
+          <p className="muted small">กำลังโหลดรีวิว…</p>
+        ) : reviews.length === 0 ? (
           <p className="muted small">
-            ยังไม่มีรีวิวสำหรับสินค้านี้ — เป็นคนแรกที่ให้คะแนนก็ได้นะครับ
+            {starFilter
+              ? `ยังไม่มีรีวิว ${starFilter} ดาวสำหรับสินค้านี้ — เลือกดูดาวอื่น หรือเป็นคนแรกที่ให้คะแนนก็ได้นะครับ`
+              : 'ยังไม่มีรีวิวสำหรับสินค้านี้ — เป็นคนแรกที่ให้คะแนนก็ได้นะครับ'}
           </p>
         ) : (
+          /* 📜 กล่องรีวิวเลื่อนดูได้ (ยาว ๆ ไม่ดันหน้าให้ยาวเกินไป) */
           <ul className="reviews-list">
             {reviews.map((rv, i) => (
               <li key={i} className="review-item">
