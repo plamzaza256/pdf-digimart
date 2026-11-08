@@ -386,6 +386,51 @@ console.log('\n10) คูลดาวน์อีเมลแจ้งเตื�
   check('ส่งไปที่ Empggez112@gmail.com', SENT_EMAILS.every((m) => m.to === 'Empggez112@gmail.com'), SENT_EMAILS);
 }
 
+console.log('\n11) rating.list — รีวิวบนหน้าสินค้า (อ่านอย่างเดียว + ซ่อนอีเมล)');
+{
+  // 🧹 เริ่มจากชีตว่าง + รีวิว 2 คนคนละอีเมล (เขียนแถว john ตรง ๆ เพราะระบบไม่ล็อกอิน
+  //    → คนไม่ล็อกอินมี email ว่างเหมือนกัน แถวจึงทับกันเองตามกติกาที่ออกแบบไว้)
+  R.data = makeRatingSheet().data;
+  const johnRow = [];
+  for (let i = 0; i < 14; i++) johnRow.push('');
+  johnRow[0] = 'uuid-john-1';
+  johnRow[1] = 'john@gmail.com';
+  johnRow[2] = 'UID_0042';
+  johnRow[3] = 'FWD-001';
+  johnRow[4] = new Date('2026-11-01');
+  johnRow[5] = 5;
+  johnRow[6] = 'เอกสารดีมาก';
+  R.data[2] = johnRow;
+
+  post({ action: 'rating.set', product_id: 'FWD-001', rating: 4, comment: 'คุ้มราคา' });
+  post({ action: 'rating.set', product_id: 'PDF-008', rating: 1, comment: 'ของสินค้าอื่น ห้ามหลุดมา' });
+
+  const list = JSON.parse(sandbox.doGet({ parameter: { action: 'rating.list', id: 'FWD-001' } }).getContent());
+
+  check('ดึงรีวิวได้ 2 รายการ', list.ok && list.reviews.length === 2, list);
+  check('เฉลี่ยของสินค้า = 4.5', Number(list.avg) === 4.5, list.avg);
+  check('นับจำนวนคน = 2', Number(list.count) === 2, list.count);
+  check('มีความเห็นครบ', list.reviews.some((r) => r.comment === 'เอกสารดีมาก'), list.reviews);
+  check('ไม่มีรีวิวของสินค้าอื่นปน', !list.reviews.some((r) => r.comment === 'ของสินค้าอื่น ห้ามหลุดมา'));
+
+  // 🕵️ ความเป็นส่วนตัว: อีเมลจริงห้ามหลุดออกจากชีต
+  const blob = JSON.stringify(list);
+  check('ไม่มีอีเมลจริงรั่วในคำตอบ', blob.indexOf('john@gmail.com') === -1, blob.slice(0, 200));
+  check('อีเมลถูกปกปิดเป็น j***@gmail.com', list.reviews.some((r) => r.author === 'j***@gmail.com'), list.reviews);
+  check('คนไม่ล็อกอินขึ้นเป็น "ลูกค้า"', list.reviews.some((r) => r.author === 'ลูกค้า'), list.reviews);
+
+  // 🔒 อ่านอย่างเดียวจริงไหม → จำนวนแถวในชีตเท่าเดิมทุกประการ
+  const before = JSON.stringify(R.data);
+  JSON.parse(sandbox.doGet({ parameter: { action: 'rating.list', id: 'FWD-001' } }).getContent());
+  check('rating.list ไม่เขียนอะไรลงชีตเลย', JSON.stringify(R.data) === before);
+
+  // ⛔ รหัสสินค้าว่าง/ไม่มี → คืนว่าง ไม่ error
+  const none = JSON.parse(sandbox.doGet({ parameter: { action: 'rating.list', id: 'NOPE-999' } }).getContent());
+  check('สินค้าไม่มีรีวิว → คืนว่าง + ok', none.ok && none.reviews.length === 0, none);
+  const noId = JSON.parse(sandbox.doGet({ parameter: { action: 'rating.list' } }).getContent());
+  check('ไม่ส่ง id → ไม่ error', noId.ok === true, noId);
+}
+
 console.log('\n─────────────────────────────');
 console.log('ผ่าน ' + pass + ' / ล้มเหลว ' + fail);
 process.exit(fail > 0 ? 1 : 0);

@@ -159,6 +159,22 @@ a { color: inherit; }
 .spec div:last-child { border-bottom: none; }
 .spec dt { color: var(--muted); }
 
+/* ⭐ รีวิวจากลูกค้า + 🔗 ปุ่มแชร์ */
+.share-row { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.share-fallback { flex: 1 1 220px; min-width: 0; font-size: 0.8rem; padding: 7px 10px; border: 1px dashed var(--line); border-radius: 8px; background: #f8fafc; color: var(--muted); }
+.reviews-box { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-top: 22px; }
+.reviews-title { font-size: 1.05rem; margin: 0 0 12px; }
+.reviews-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.review-item { border-top: 1px dashed var(--line); padding-top: 12px; }
+.review-item:first-child { border-top: none; padding-top: 0; }
+.review-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.review-stars { letter-spacing: 1px; font-size: 0.98rem; }
+.review-stars .star-full { color: #f59e0b; }
+.review-stars .star-half { color: #fbbf24; }
+.review-stars .star-empty { color: #d1d5db; }
+.review-num { font-weight: 700; font-size: 0.9rem; }
+.review-text { margin: 6px 0 0; color: var(--ink); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+
 /* cart / orders */
 .cart-line { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; justify-content: space-between; gap: 10px; margin-bottom: 10px; align-items: center; }
 .cart-ctrl { display: flex; gap: 8px; align-items: center; }

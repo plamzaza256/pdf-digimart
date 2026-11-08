@@ -6,7 +6,9 @@ import OrderLineButton from '@shared/components/OrderLineButton';
 import RatingModal from '../components/RatingModal';
 import { parseFileSize } from '@shared/lib/fileSize';
 import { coverUrlFromFiles, coverUrlFromSheet, sampleEmbedUrl } from '@shared/lib/media';
-import { apiProductView } from '@shared/lib/api';
+import { apiProductView, apiRatingList } from '@shared/lib/api';
+
+type Review = { rating: number; comment: string; date: string; author: string };
 
 /**
  * 👁️ ตัวอย่างไฟล์ PDF
@@ -72,6 +74,27 @@ export default function ProductDetail() {
   // 🖼️ มีรูปปกจริงไหม → เปลี่ยนพื้นหลังเป็นสีขาว ข้อความสีเข้ม
   const [hasImg, setHasImg] = useState(false);
   const [myRating, setMyRating] = useState<number | null>(null);
+  // ⭐ รีวิวจากลูกค้าคนอื่น (โหลดจากเซิร์ฟเวอร์ — อ่านอย่างเดียว)
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewsCount, setReviewsCount] = useState(0);
+  // 🔗 สถานะปุ่มคัดลอกลิงก์ ('' = ยังไม่ทำอะไร · 'ok' = คัดลอกสำเร็จ · 'fail' = คัดลอกไม่ได้ → โชว์ลิงก์ให้คัดเอง)
+  const [copyState, setCopyState] = useState<'' | 'ok' | 'fail'>('');
+
+  // ⬇️ โหลดรีวิวของสินค้า (ล้มเหลวก็ปล่อย — ห้ามขึ้น error ให้ลูกค้าเห็น)
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    apiRatingList(id)
+      .then((r) => {
+        if (cancelled || !r.ok) return;
+        setReviews(Array.isArray(r.reviews) ? r.reviews : []);
+        setReviewsCount(Number(r.count || 0));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   if (!p) {
     return (
@@ -172,6 +195,67 @@ export default function ProductDetail() {
                 )}
               </button>
             </div>
+            {/* 🔗 แชร์สินค้า — มือถือใช้เมนูแชร์ของเครื่อง · คอมฯ คัดลอกลิงก์ */}
+            <div className="share-row">
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={async () => {
+                  const url = window.location.href;
+                  // 📱 มือถือ/เบราว์เซอร์ที่รองรับ → เปิดเมนูแชร์จริงของเครื่อง
+                  const nav = navigator as Navigator & {
+                    share?: (d: { title: string; text: string; url: string }) => Promise<void>;
+                  };
+                  if (nav.share) {
+                    try {
+                      await nav.share({ title: p.title, text: p.title, url });
+                      return;
+                    } catch {
+                      /* กดยกเลิก หรือแชร์ไม่ได้ → ลองคัดลอกลิงก์ต่อ */
+                    }
+                  }
+                  // 💻 คัดลอกลิงก์ (วิธีใหม่ แล้วตามด้วยวิธีเก่ากันเบราว์เซอร์บล็อก)
+                  let ok = false;
+                  try {
+                    await navigator.clipboard.writeText(url);
+                    ok = true;
+                  } catch {
+                    try {
+                      const ta = document.createElement('textarea');
+                      ta.value = url;
+                      ta.style.position = 'fixed';
+                      ta.style.opacity = '0';
+                      document.body.appendChild(ta);
+                      ta.select();
+                      ok = document.execCommand('copy');
+                      document.body.removeChild(ta);
+                    } catch {
+                      ok = false;
+                    }
+                  }
+                  if (ok) {
+                    setCopyState('ok');
+                    window.setTimeout(() => setCopyState(''), 2000);
+                  } else {
+                    // 🆘 คัดลอกไม่ได้ → โชว์ลิงก์ให้ลูกค้าคัดลอกเอง (ไม่หายเงียบ)
+                    setCopyState('fail');
+                  }
+                }}
+              >
+                🔗 {copyState === 'ok' ? 'คัดลอกลิงก์แล้ว!' : 'แชร์ / คัดลอกลิงก์'}
+              </button>
+              {/* 🆘 เบราว์เซอร์บล็อกการคัดลอก → โชว์ลิงก์ให้เลือกแล้วกด Ctrl+C เอง */}
+              {copyState === 'fail' && (
+                <input
+                  className="share-fallback"
+                  readOnly
+                  value={window.location.href}
+                  onFocus={(e) => e.currentTarget.select()}
+                  autoFocus
+                  aria-label="ลิงก์สินค้า"
+                />
+              )}
+            </div>
             {/* ลิงก์แบบ short (lin.ee/xxx) ต่อ ?text= ไม่ได้ → ต้องให้ลูกค้าเห็นชื่อสินค้าบนหน้าเว็บแทน */}
             <p className="muted small">
               แจ้งชื่อสินค้านี้ในแชท: <b>{p.title}</b>
@@ -206,6 +290,51 @@ export default function ProductDetail() {
           </dl>
         </div>
       </div>
+
+      {/* ⭐ รีวิวจากลูกค้า — ดาว + คำชมจริงจากชีต (อีเมลถูกปกปิดไว้) */}
+      <section className="reviews-box" aria-label="รีวิวจากลูกค้า">
+        <h2 className="reviews-title">
+          ⭐ รีวิวจากลูกค้า
+          {reviewsCount > 0 && (
+            <span className="muted small">
+              {' '}— {reviewsCount.toLocaleString('th-TH')} รีวิว
+            </span>
+          )}
+        </h2>
+
+        {reviews.length === 0 ? (
+          <p className="muted small">
+            ยังไม่มีรีวิวสำหรับสินค้านี้ — เป็นคนแรกที่ให้คะแนนก็ได้นะครับ
+          </p>
+        ) : (
+          <ul className="reviews-list">
+            {reviews.map((rv, i) => (
+              <li key={i} className="review-item">
+                <div className="review-head">
+                  {/* ⭐ ดาวเต็ม/ครึ่ง ตามคะแนนจริง */}
+                  <span className="review-stars" aria-label={`${rv.rating} ดาว`}>
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <span
+                        key={s}
+                        className={
+                          rv.rating >= s ? 'star-full' : rv.rating >= s - 0.5 ? 'star-half' : 'star-empty'
+                        }
+                      >
+                        {rv.rating >= s - 0.5 ? '★' : '☆'}
+                      </span>
+                    ))}
+                  </span>
+                  <span className="review-num">{rv.rating.toFixed(1)}</span>
+                  <span className="muted small">
+                    {rv.author} • {rv.date}
+                  </span>
+                </div>
+                {rv.comment && <p className="review-text">{rv.comment}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {rateOpen && (
         <RatingModal

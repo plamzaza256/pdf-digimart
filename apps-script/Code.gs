@@ -252,6 +252,9 @@ function doGet(e) {
     // 👁️ นับจำนวนคนเปิดดูสินค้า (ทุกคนเรียกได้ ไม่ต้องล็อกอิน)
     if (action === 'product.view') return _json(_bumpViews(p.id));
 
+    // ⭐ รีวิวล่าสุดของสินค้า (อ่านอย่างเดียว — โชว์บนหน้าสินค้า)
+    if (action === 'rating.list') return _json(_ratingList(p.id));
+
     return _json({ ok: false, error: 'ไม่รู้จักคำสั่ง: ' + action });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
@@ -1066,6 +1069,88 @@ function _ratingStats() {
   }
 
   return { ok: true, avg: Math.round(avg * 100) / 100, count: count };
+}
+
+/**
+ * ⭐ ดึง "รีวิว" ล่าสุดของสินค้า 1 ตัว (อ่านอย่างเดียว ไม่เขียนอะไรทั้งสิ้น)
+ *
+ * 📄 ใช้โชว์บนหน้าสินค้าให้ลูกค้าคนอื่นเห็นคำชมจริง
+ *
+ * 🛡 ความเป็นส่วนตัว — "ไม่ส่งอีเมล/รหัสลูกค้าออกไปนอกชีตเด็ดขาด"
+ *    คืนเฉพาะ: ดาว + ความเห็น + วันที่ + ชื่อที่ปกปิดแล้ว (เช่น "j***@gmail.com")
+ *
+ * @param {string} productId รหัสสินค้า
+ * @return {object} { ok, reviews: [...], avg, count }
+ */
+function _ratingList(productId) {
+  const empty = { ok: true, reviews: [], avg: 0, count: 0 };
+  const id = String(productId || '').trim();
+  if (!id) return empty;
+
+  try {
+    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_RATING);
+    if (!sh) return empty;
+
+    const lastRow = sh.getLastRow();
+    const lastCol = sh.getLastColumn();
+    if (lastRow < 3 || lastCol < 1) return empty;
+
+    const all = sh.getRange(1, 1, lastRow, lastCol).getValues();
+    const hIdx = _findHeaderRow(all);
+    const headers = all[hIdx].map(function (h) { return String(h || '').trim(); });
+
+    const cProduct = _colIndex(headers, 'product_id');
+    const cRating = _colIndex(headers, 'rating');
+    const cComment = _colIndex(headers, 'comment');
+    const cAt = _colIndex(headers, 'created_at');
+    const cEmail = _colIndex(headers, 'email');
+    if (cProduct === -1 || cRating === -1) return empty;
+
+    const reviews = [];
+    let sum = 0;
+    let n = 0;
+    for (let r = hIdx + 1; r < all.length; r++) {
+      const row = all[r];
+      const rp = String(row[cProduct] || '').trim();
+      if (rp !== id) continue;                       // ข้ามสินค้าอื่น + ข้ามแถวสรุปของเจ้าของร้าน
+      const rv = Number(row[cRating]);
+      if (!isFinite(rv) || rv <= 0) continue;        // ข้ามแถวที่ยังไม่มีคะแนน
+      sum += rv;
+      n++;
+      reviews.push({
+        rating: Math.round(rv * 100) / 100,
+        comment: String(cComment !== -1 ? row[cComment] || '' : '').trim().slice(0, 500),
+        date: _fmtDate(cAt !== -1 ? row[cAt] : ''),
+        // 🕵️ ปกปิดอีเมล: j***@gmail.com (โชว์ให้เห็นแค่คนเดียวกับที่ให้คะแนนจริง)
+        author: _maskEmail_(cEmail !== -1 ? row[cEmail] : '')
+      });
+    }
+
+    // ⬇️ ใหม่ก่อน + จำกัด 20 รีวิวล่าสุด (กันหน้าเว็บหนักถ้าสินค้าดัง)
+    reviews.sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+    const out = reviews.slice(0, 20);
+
+    return {
+      ok: true,
+      reviews: out,
+      avg: n ? Math.round((sum / n) * 100) / 100 : 0,
+      count: n
+    };
+  } catch (e) {
+    _log_('ratingList ล้มเหลว (ไม่กระทบอะไร): ' + e);
+    return empty;
+  }
+}
+
+/**
+ * 🕵️ ปกปิดอีเมลก่อนส่งออกนอกชีต → "j***@gmail.com"
+ *    (อีเมลว่าง/ไม่มี @ → คืน "ลูกค้า")
+ */
+function _maskEmail_(email) {
+  const s = String(email || '').trim().toLowerCase();
+  if (!s || s.indexOf('@') < 1) return 'ลูกค้า';
+  const at = s.indexOf('@');
+  return s.charAt(0) + '***' + s.slice(at);
 }
 
 /**

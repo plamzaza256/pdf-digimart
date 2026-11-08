@@ -190,6 +190,24 @@ export function apiRateProduct(productId: string, rating: number, comment: strin
   return call('rating.set', { product_id: productId, rating, comment });
 }
 
+/**
+ * ⭐ รีวิวของสินค้า 1 ตัว (อ่านอย่างเดียว)
+ *
+ * คืน ดาว + ความเห็น + วันที่ + ชื่อปกปิดแล้ว (อีเมลจริงไม่ออกจากชีต)
+ * ใช้โชว์ในกล่อง "รีวิวจากลูกค้า" ที่หน้าสินค้า
+ */
+export async function apiRatingList(productId: string) {
+  const res = await fetch(
+    `${apiUrl()}?action=rating.list&id=${encodeURIComponent(productId)}`,
+  );
+  return (await res.json()) as {
+    ok: boolean;
+    reviews?: { rating: number; comment: string; date: string; author: string }[];
+    avg?: number;
+    count?: number;
+  };
+}
+
 // ============================ ⭐ ให้คะแนนเว็บไซต์ ============================
 
 /**
